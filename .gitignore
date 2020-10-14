@@ -3,6 +3,7 @@
 *.npz
 .DS_Store
 *.egg-info
+*.hdf5
 .pytest_cache/*
 build/
 dist/
