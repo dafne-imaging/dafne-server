@@ -2,9 +2,18 @@ import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from markupsafe import escape
 
-from utils import is_valid_access_code
+from utils import valid_credentials
 
 app = Flask(__name__)
+
+
+@app.route('/info_model', methods=["POST"])
+def info_model():
+    if valid_credentials(request.json["username"], request.json["pwd"]):
+        model = "models/weights_coscia.hdf5"
+        return send_file(model), 200
+    else:
+        return {"message": "invalid access code"}, 401
 
 
 @app.route('/get_model', methods=["POST"])
