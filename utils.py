@@ -30,8 +30,10 @@ def get_models(model_type):
 def merge_model(model_type, new_model_path):
     latest_model = get_models(model_type)[-1]
     # todo: 
+    # - evaluate new model. Only continue if model is above certain dice threshold
     # - merge latest_model and new_model_path 
-    # - store new model
+    # - evaluate merged model
+    # - store new model if it is above certain dice threshold
 
 
 if __name__ == '__main__':
