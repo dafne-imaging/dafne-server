@@ -4,7 +4,7 @@ import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from markupsafe import escape
 
-from utils import valid_credentials, get_model_types, get_models, get_username, merge_model
+from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
 
 app = Flask(__name__)
 
@@ -29,6 +29,8 @@ def get_model():
     if not os.path.isfile(model):
         return {"message": "invalid model - not found"}, 500
 
+    username = get_username(meta["api_key"])
+    log(f"get_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
     return send_file(model), 200
 
 
@@ -46,6 +48,7 @@ def upload_file():
                  "_" + username + ".hdf5"
     f.save(model_path)
     merge_model(meta["model_type"], model_path)
+    log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
     return {"message": "upload successful"}, 200
             
 

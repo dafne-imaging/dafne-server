@@ -1,5 +1,5 @@
 import glob
-
+import datetime
 
 def valid_credentials(api_key):
     lines = open("api_keys.txt", "r").readlines()
@@ -36,8 +36,14 @@ def merge_model(model_type, new_model_path):
     # - store new model if it is above certain dice threshold
 
 
+def log(text):
+    with open("log.txt", "a") as f:
+        f.write(str(datetime.datetime.now()) + " " + text + "\n")
+
+
 if __name__ == '__main__':
     # valid_credentials("abc123")
     # print(get_model_types())
-    print(get_models("thigh"))
+    # print(get_models("thigh"))
+    log("hello world")
 
