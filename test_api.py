@@ -10,9 +10,9 @@ url_base = 'http://localhost:5000/'
 
 print("------------- Get model ------------------")
 
-r = requests.post(url_base + "get_model", json={"access_code": "123"})
+r = requests.post(url_base + "get_model",
+                  json={"name": "thigh_segmentation_test", "access_code": "123"})
 if r.ok:
-    # print(response.headers)
     with open('new_weights.hdf5', 'wb') as f:
         f.write(r.content)
 else:
@@ -23,6 +23,7 @@ else:
 print("------------- Upload model ------------------")
 
 files = {'upload_file': open('/Users/jakob/dev/dafne-server/new_weights.hdf5','rb')}
-r = requests.post(url_base + "upload_model", json={"version": 2}, files=files)
+r = requests.post(url_base + "upload_model", files=files,
+                  data={"name": "thigh_segmentation_test", "access_code": "123"})
 print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
