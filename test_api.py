@@ -25,16 +25,17 @@ print("------------- Get model ------------------")
 r = requests.post(url_base + "get_model",
                   json={"model_type": "thigh", "timestamp": latest_timestamp, "api_key": "abc123"})
 if r.ok:
-    with open('new_weights.hdf5', 'wb') as f:
+    with open('new_model.model', 'wb') as f:
         f.write(r.content)
 else:
     print(f"status code: {r.status_code}")
     print(f"message: {r.json()['message']}")
 
 
+
 print("------------- Upload model ------------------")
 
-files = {'upload_file': open('new_weights.hdf5','rb')}
+files = {'upload_file': open('new_model.model','rb')}
 r = requests.post(url_base + "upload_model", files=files,
                   data={"model_type": "thigh", "api_key": "abc123"})
 print(f"status code: {r.status_code}")

@@ -4,7 +4,12 @@ import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from markupsafe import escape
 
+# hide tensorflow verbose output
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
+
+from dl.LocalModelProvider import LocalModelProvider
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
+from utils import MODELS_DIR
 
 app = Flask(__name__)
 
@@ -24,8 +29,9 @@ def get_model():
     meta = request.json
     if not valid_credentials(meta["api_key"]):
         return {"message": "invalid access code"}, 401
-    model = "models/" + meta["model_type"] + "/" + \
-            meta["timestamp"] + ".hdf5"  # todo: read and write access only to models dir
+
+    # todo: read and write access only to models dir
+    model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
     if not os.path.isfile(model):
         return {"message": "invalid model - not found"}, 500
 
@@ -42,15 +48,23 @@ def upload_file():
     if meta["model_type"] not in get_model_types():
         return {"message": "invalid model type"}, 500
             
-    f = request.files['upload_file']
     username = get_username(meta["api_key"])
-    model_path = "models/" + meta["model_type"] + "/uploads/" + str(int(time.time())) + \
-                 "_" + username + ".hdf5"
+    f = request.files['upload_file']
+    model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
     f.save(model_path)
-    merge_model(meta["model_type"], model_path)
+
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
-    return {"message": "upload successful"}, 200
-            
+
+    merged_model = merge_model(meta["model_type"], model_path)
+
+    if merged_model is not None:
+        new_model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}.model"
+        with open(new_model_path, 'wb') as f: 
+            merged_model.dump(f)
+        return {"message": "upload successful"}, 200
+    else:
+        return {"message": "merging of models failed"}, 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
