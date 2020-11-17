@@ -4,8 +4,9 @@ import dill
 from dl.DynamicDLModel import DynamicDLModel
 
 """
-Start server by running `python serve.py`.
-Then you can access the API like the following
+Place model weights for example here: `models/thigh/1603281013.model`.  
+Start server by running `python serve.py`.  
+Then in another shell run `python test_api.py`.  
 """
 
 url_base = 'http://localhost:5000/'
