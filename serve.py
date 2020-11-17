@@ -1,4 +1,4 @@
-import os, glob, time
+import os, glob, time, io
 
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -35,14 +35,16 @@ def get_model():
     model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
     if not os.path.isfile(model):
         return {"message": "invalid model - not found"}, 500
+    model = DynamicDLModel.Load(open(model, "rb"))
+    model_bytes = model.dumps()
 
     username = get_username(meta["api_key"])
     log(f"get_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
-    return send_file(model), 200
+    return send_file(io.BytesIO(model_bytes), mimetype='image/jpg'), 200
 
 
 @app.route('/upload_model', methods=['POST'])
-def upload_file():
+def upload_model():
     meta = request.form.to_dict()
     if not valid_credentials(meta["api_key"]):
         return {"message": "invalid access code"}, 401
@@ -50,7 +52,7 @@ def upload_file():
         return {"message": "invalid model type"}, 500
             
     username = get_username(meta["api_key"])
-    model_binary = request.files['model_binary']
+    model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model = DynamicDLModel.Loads(model_binary)
 
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
