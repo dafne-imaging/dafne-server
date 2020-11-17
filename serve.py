@@ -8,6 +8,7 @@ from markupsafe import escape
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
 
 from dl.LocalModelProvider import LocalModelProvider
+from dl.DynamicDLModel import DynamicDLModel
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
 from utils import MODELS_DIR
 
@@ -24,7 +25,7 @@ def info_model():
     return {"latest_timestamp": latest_timestamp}, 200
 
 
-@app.route('/get_model', methods=["POST"])
+@app.route('/get_model', methods=["POST"])  
 def get_model():
     meta = request.json
     if not valid_credentials(meta["api_key"]):
@@ -49,9 +50,11 @@ def upload_file():
         return {"message": "invalid model type"}, 500
             
     username = get_username(meta["api_key"])
-    f = request.files['upload_file']
+    model_binary = request.files['model_binary']
+    model = DynamicDLModel.Loads(model_binary)
+
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
-    f.save(model_path)
+    model.dump(open(model_path, "wb"))
 
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
 

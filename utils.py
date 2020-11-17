@@ -115,4 +115,3 @@ if __name__ == '__main__':
 
     model = DynamicDLModel.Load(open(f"{MODELS_DIR}/thigh/1603281013.model", 'rb'))
     r = evaluate_model("thigh", model)
-
