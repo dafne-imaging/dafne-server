@@ -20,6 +20,7 @@ model
     '-> XXX.model
 ```
 Replace XXX with an integer (unique ID / timestamp) (e.g. 1603281013.model).  
+Then start the server:  
 ```
 python serve.py
 ```
