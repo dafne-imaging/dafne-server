@@ -55,6 +55,8 @@ def upload_model():
     model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model = DynamicDLModel.Loads(model_binary)
 
+    # todo: undo model delta compression
+
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
     model.dump(open(model_path, "wb"))
 
