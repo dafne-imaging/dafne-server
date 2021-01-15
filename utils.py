@@ -6,7 +6,6 @@ from collections import defaultdict
 import pydicom as dicom
 import numpy as np
 import nibabel as nib
-from sklearn.metrics import f1_score
 from tqdm import tqdm
 
 # hide tensorflow verbose output
@@ -91,7 +90,7 @@ def my_f1_score(y_true, y_pred):
 
 def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
     
-    if model_type != "thigh":
+    if model_type != "Thigh":
         print("WARNING: Validation data only available for thigh model. Skipping validation!")
         return 1.0
 
@@ -107,7 +106,7 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
 
         #todo: remove this to use all slices
         print("WARNING: Only evaluating on a subset of slices for faster runtime.")
-        slices = [2,10,20,30]
+        slices = [20,30]
 
         for idx in tqdm(slices):
             slice = data[:, :, idx]

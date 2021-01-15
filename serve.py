@@ -76,8 +76,7 @@ def upload_model():
 
     if merged_model is not None:
         new_model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}.model"
-        with open(new_model_path, 'wb') as f: 
-            merged_model.dump(f)
+        merged_model.dump(open(new_model_path, 'wb'))
 
         # todo: replace "main" model by newly uploaded model
 
