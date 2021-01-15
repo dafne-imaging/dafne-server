@@ -71,15 +71,19 @@ def upload_model():
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
 
     # todo: set this higher
-    dice_thr = 0.01
+    dice_thr = 0.0001
     merged_model = merge_model(meta["model_type"], model_path, dice_thr)
 
     if merged_model is not None:
         new_model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}.model"
         with open(new_model_path, 'wb') as f: 
             merged_model.dump(f)
+
+        # todo: replace "main" model by newly uploaded model
+
         return {"message": "upload successful"}, 200
     else:
+        print("Info: merging of models failed, because validation Dice too low.")
         return {"message": "merging of models failed, because validation Dice too low."}, 500
 
 

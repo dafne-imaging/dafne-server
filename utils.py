@@ -91,6 +91,10 @@ def my_f1_score(y_true, y_pred):
 
 def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
     
+    if model_type != "thigh":
+        print("WARNING: Validation data only available for thigh model. Skipping validation!")
+        return 1.0
+
     for file in glob.glob(f"{TEST_DATA_DIR}/*.nii.gz"):
         print(f"Processing subject: {str(file).split('/')[-1]}")
         # data, res, _ = load_dicom_file(file)
