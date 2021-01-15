@@ -2,6 +2,7 @@
 .vscode
 *.pyc
 *.npz
+*.nii.gz
 .DS_Store
 *.egg-info
 *.hdf5

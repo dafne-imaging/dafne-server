@@ -1,12 +1,16 @@
 import os
 import glob
 import datetime
+from collections import defaultdict
 
 import pydicom as dicom
 import numpy as np
+import nibabel as nib
+from sklearn.metrics import f1_score
+from tqdm import tqdm
 
 # hide tensorflow verbose output
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
 from dl.DynamicDLModel import DynamicDLModel
 
@@ -72,20 +76,63 @@ def get_models(model_type):
     return sorted([m.split("/")[-1].split(".")[0] for m in available_models])
 
 
+def my_f1_score(y_true, y_pred):
+    """
+    Binary f1. Same results as sklearn f1 binary.
+
+    y_true: 1D / 2D / 3D array
+    y_pred: 1D / 2D / 3D array
+    """
+    intersect = np.sum(y_true * y_pred)  # works because all multiplied by 0 gets 0
+    denominator = np.sum(y_true) + np.sum(y_pred)  # works because all multiplied by 0 gets 0
+    f1 = (2 * intersect) / (denominator + 1e-6)
+    return f1
+
+
 def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
     
-    for file in glob.glob(f"{TEST_DATA_DIR}/{model_type}/*"):
-        arr, res, _ = load_dicom_file(file)
-        seg = model.apply({"image": arr, "resolution": res[:2]})
-        print(seg.keys())
-        print(seg["VL"].shape)
+    for file in glob.glob(f"{TEST_DATA_DIR}/*.nii.gz"):
+        print(f"Processing subject: {str(file).split('/')[-1]}")
+        # data, res, _ = load_dicom_file(file)
+        img = nib.load(file)
+        res = img.header.get_zooms()
+        data = img.get_fdata()
 
-        # todo: compare to groundtruth
+        scores = defaultdict(list)
+        slices = range(data.shape[2])
 
-    return 1.0
+        #todo: remove this to use all slices
+        print("WARNING: Only evaluating on a subset of slices for faster runtime.")
+        slices = [2,10,20,30]
+
+        for idx in tqdm(slices):
+            slice = data[:, :, idx]
+            pred = model.apply({"image": slice, "resolution": res[:2]})
+            gt = np.load(file.replace(".nii.gz", ".npz"))
+            
+            pred_keys = pred.keys()
+            gt_keys = gt.files
+            
+            if set(pred_keys) != set(gt_keys):
+                raise ValueError(f"Keys of prediction and groundtruth are different: " +
+                                 f"{pred_keys} vs {gt_keys}")
+
+            for key in pred_keys:
+                dice = my_f1_score(gt[key][:, :, idx], pred[key])
+                scores[key].append(dice)
+
+    scores = {k: np.array(v).mean() for k, v in scores.items()}
+    print(scores)
+    return np.array(list(scores.values())).mean()
 
 
 def merge_model(model_type, new_model_path, dice_thr=0.8):
+    """
+    This will take a (weighted) average of the weights of two models.
+    If the new_model or the resulting merged model have a lower validation dice score
+    than dice_thr then the merged model will be discarded. Otherwise it will become the
+    new default model.
+    """
     latest_timestamp = get_models(model_type)[-1]
     latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
     new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
