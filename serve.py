@@ -60,7 +60,10 @@ def upload_model():
 
     # calc_delta(): new_model - orig_model = delta
     # apply_delta(): model_orig + delta = model_new
-    model = model_orig.apply_delta(model_delta)
+
+    # Model delta: only activate if rest of federated learning working properly
+    # model = model_orig.apply_delta(model_delta)
+    model = model_delta
 
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
     model.dump(open(model_path, "wb"))
