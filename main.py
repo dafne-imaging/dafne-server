@@ -87,4 +87,6 @@ def upload_model():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Only for debugging while developing
+    # app.run(debug=True)
+    app.run(debug=False)

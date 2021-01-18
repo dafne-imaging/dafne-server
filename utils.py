@@ -14,8 +14,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 from dl.DynamicDLModel import DynamicDLModel
 
 
-MODELS_DIR = "models"
-TEST_DATA_DIR = "test_data"
+MODELS_DIR = "db/models"
+TEST_DATA_DIR = "db/test_data"
 
 # def load_dicom_file(fname):
 #     ds = dicom.read_file(fname)
@@ -50,7 +50,7 @@ def load_dicom_file(fname):
 
 
 def valid_credentials(api_key):
-    lines = open("api_keys.txt", "r").readlines()
+    lines = open("db/api_keys.txt", "r").readlines()
     for line in lines:
         username, key = line.strip().split(":")
         if key == api_key: return True
@@ -58,7 +58,7 @@ def valid_credentials(api_key):
 
 
 def get_username(api_key):
-    lines = open("api_keys.txt", "r").readlines()
+    lines = open("db/api_keys.txt", "r").readlines()
     for line in lines:
         username, key = line.strip().split(":")
         if key == api_key: return username
@@ -150,7 +150,7 @@ def merge_model(model_type, new_model_path, dice_thr=0.8):
 
 
 def log(text):
-    with open("log.txt", "a") as f:
+    with open("db/log.txt", "a") as f:
         f.write(str(datetime.datetime.now()) + " " + text + "\n")
 
 

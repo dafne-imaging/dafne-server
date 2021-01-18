@@ -1,0 +1,3 @@
+# ** is any number of nested directories
+# **/*.model
+db/models/*

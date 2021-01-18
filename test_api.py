@@ -1,3 +1,4 @@
+import os
 import requests
 import dill
 
@@ -18,6 +19,7 @@ r = requests.post(url_base + "info_model",
                   json={"model_type": "Thigh", "api_key": "abc123"})
 if r.ok:
     latest_timestamp = r.json()['latest_timestamp']
+    print(f"latest_timestamp: {latest_timestamp}")
 else:
     print(f"status code: {r.status_code}")
     print(f"message: {r.json()['message']}")
@@ -44,3 +46,7 @@ r = requests.post(url_base + "upload_model", files=files,
                   data={"model_type": "Thigh", "api_key": "abc123"})
 print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
+
+
+# Delete temporary file
+os.remove("new_model.model")

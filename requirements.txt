@@ -1,6 +1,10 @@
+numpy==1.18.5
+tensorflow==2.3.1
+keras==2.4.3
 Flask
-numpy
 nibabel
 tqdm
 pydicom
 MarkupSafe
+dill
+requests

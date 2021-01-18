@@ -11,20 +11,33 @@ The server does the following:
 ## How to start the server
 Put models into the following folder structure:
 ```
-model
-'-> Classifier
-    '-> XXX.model
-'-> Leg
-    '-> XXX.model
-'-> Thigh
-    '-> XXX.model
+db
+'-> model
+    '-> Classifier
+        '-> XXX.model
+    '-> Leg
+        '-> XXX.model
+    '-> Thigh
+        '-> XXX.model
 ```
 Replace XXX with an integer (unique ID / timestamp) (e.g. 1603281013.model).  
 Then start the server:  
 ```
-python serve.py
+python main.py
 ```
 
 
 ### How to use the API
 See [test_api.py](test_api.py)
+
+
+### Build and use docker container
+Build:
+```
+docker build -t dafne-server:master .
+```
+
+Run:
+``` 
+docker run -p 5000:80 -v /home/jakob/dev/dafne-server/db:/app/db dafne-server:master
+``` 

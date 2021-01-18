@@ -1,2 +1,7 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.8
+# Use same python version as was used to generate the tf models
+FROM tiangolo/uwsgi-nginx-flask:python3.7
+
+COPY . /app
+
+RUN pip install -r /app/requirements.txt
 
