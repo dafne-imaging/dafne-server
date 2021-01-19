@@ -5,8 +5,8 @@ import dill
 from dl.DynamicDLModel import DynamicDLModel
 
 """
-Place model weights for example here: `models/thigh/1603281013.model`.  
-Start server by running `python serve.py`.  
+Place model weights for example here: `db/models/Thigh/1603281013.model`.  
+Start server by running `python main.py`.  
 Then in another shell run `python test_api.py`.  
 """
 
@@ -48,5 +48,19 @@ print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
 
 
-# Delete temporary file
-os.remove("new_model.model")
+
+os.remove("new_model.model")  # Delete temporary file
+
+
+# print("------------- my_test ------------------")
+
+# r = requests.post(url_base + "my_test",
+#                   json={"model_type": "Thigh", "api_key": "abc123"})
+# if r.ok:
+#     latest_timestamp = r.json()['latest_timestamp']
+#     print(f"latest_timestamp: {latest_timestamp}")
+# else:
+#     print(f"status code: {r.status_code}")
+#     print(f"message: {r.json()['message']}")
+
+

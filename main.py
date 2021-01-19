@@ -1,4 +1,5 @@
 import os, glob, time, io
+from threading import Thread
 
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -37,7 +38,6 @@ def get_model():
         return {"message": "invalid model - not found"}, 500
     model = DynamicDLModel.Load(open(model, "rb"))
     model_bytes = model.dumps()
-
     username = get_username(meta["api_key"])
     log(f"get_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
     return send_file(io.BytesIO(model_bytes), mimetype='image/jpg'), 200
@@ -54,7 +54,6 @@ def upload_model():
     username = get_username(meta["api_key"])
     model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model_delta = DynamicDLModel.Loads(model_binary)
-
     model_orig_path = f"{MODELS_DIR}/{meta['model_type']}/{model_delta.timestamp_id}.model"
     model_orig = DynamicDLModel.Load(open(model_orig_path, "rb"))
 
@@ -70,23 +69,44 @@ def upload_model():
 
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
 
+    print("Starting merge...")
     # todo: set this higher
     dice_thr = 0.0001
-    merged_model = merge_model(meta["model_type"], model_path, dice_thr)
+    # merged_model = merge_model(meta["model_type"], model_path, dice_thr)
+    thread = Thread(target=merge_model, args=(meta["model_type"], model_path, dice_thr))
+    thread.daemon = True
+    thread.start()
+    merged_model = 1
 
     if merged_model is not None:
-        new_model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}.model"
-        merged_model.dump(open(new_model_path, 'wb'))
-
-        # todo: replace "main" model by newly uploaded model
-
         return {"message": "upload successful"}, 200
     else:
         print("Info: merging of models failed, because validation Dice too low.")
         return {"message": "merging of models failed, because validation Dice too low."}, 500
 
 
+
+def my_async_func(a):
+    print("Inside async: starting")
+    print(f"Inside async: param: {a}")
+    time.sleep(4)    
+    print("Inside async: ending")
+    return 5
+
+@app.route('/my_test', methods=["POST"])
+def my_test():
+    meta = request.json
+    print("Inside my_test()")
+    
+    print("Calling async thread...")
+    thread = Thread(target=my_async_func, args=("what",))
+    thread.daemon = True
+    thread.start()
+
+    print("Inside my_test(): returning")
+    return {"latest_timestamp": 123}, 200
+
+
 if __name__ == '__main__':
     # Only for debugging while developing
-    # app.run(debug=True)
-    app.run(debug=False)
+    app.run(debug=True)

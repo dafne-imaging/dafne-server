@@ -2,6 +2,7 @@ import os
 import glob
 import datetime
 from collections import defaultdict
+import time
 
 import pydicom as dicom
 import numpy as np
@@ -136,6 +137,7 @@ def merge_model(model_type, new_model_path, dice_thr=0.8):
     than dice_thr then the merged model will be discarded. Otherwise it will become the
     new default model.
     """
+    print("Merging...")
     latest_timestamp = get_models(model_type)[-1]
     latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
     new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
@@ -146,6 +148,13 @@ def merge_model(model_type, new_model_path, dice_thr=0.8):
     merged_model = latest_model.apply_delta(new_model)
 
     if evaluate_model(model_type, merged_model) < dice_thr: return None
+
+    print("Saving merged model as new main model...")
+    new_model_path = f"{MODELS_DIR}/{model_type}/{str(int(time.time()))}.model"
+    merged_model.dump(open(new_model_path, 'wb'))
+
+    print(f"merged_model.timestamp: {merged_model.timestamp_id}")
+
     return merged_model
 
 
@@ -155,13 +164,6 @@ def log(text):
 
 
 if __name__ == '__main__':
-    # valid_credentials("abc123")
-    # print(get_model_types())
-    # print(get_models("thigh"))
-    # log("hello world")
-
-    # f, res, hdr = load_dicom_file("test_data/thigh/thigh_test.dcm")
-    # print(res)
-
+    ####### For testing #######
     model = DynamicDLModel.Load(open(f"{MODELS_DIR}/thigh/1603281013.model", 'rb'))
     r = evaluate_model("thigh", model)
