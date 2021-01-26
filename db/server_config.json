@@ -1,4 +1,4 @@
 {
     "nr_models_to_keep": 20,
-    "dice_threshold": -0.001
+    "dice_threshold": 0.001
 }
