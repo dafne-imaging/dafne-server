@@ -41,3 +41,9 @@ Run:
 ``` 
 docker run -p 5000:80 -v /home/jakob/dev/dafne-server/db:/app/db dafne-server:master
 ``` 
+
+
+### Using cloud server
+
+[see details](server_setup.md)
+
