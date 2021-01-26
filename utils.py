@@ -82,23 +82,24 @@ def delete_older_models(model_type, keep_latest=5):
     """
     Only keep the newest N models inside of model_type/* and model_type/uploads/*
     """
-    available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/*.model"))
-    available_models = sorted([m.split("/")[-1].split(".")[0] for m in available_models])
-    if len(available_models) > keep_latest:
-        for model in available_models[:-keep_latest]:
-            rm_path = Path(MODELS_DIR) / model_type / f"{model}.model"
-            print(f"removing: {rm_path}")
-            # todo important: change
-            # os.remove(rm_path)
 
+    # # Remove model_type/*
+    # available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/*.model"))
+    # available_models = sorted([m.split("/")[-1].split(".")[0] for m in available_models])
+    # if len(available_models) > keep_latest:
+    #     for model in available_models[:-keep_latest]:
+    #         rm_path = Path(MODELS_DIR) / model_type / f"{model}.model"
+    #         print(f"removing: {rm_path}")
+    #         os.remove(rm_path)
+
+    # Remove model_type/uploads/*
     available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/uploads/*.model"))
     available_models = sorted([m.split("/")[-1].split("_")[0] for m in available_models])
     if len(available_models) > keep_latest:
         for model in available_models[:-keep_latest]:
-            rm_path = Path(MODELS_DIR) / model_type / "uploads" / f"{model}.model"
+            rm_path = list((Path(MODELS_DIR) / model_type / "uploads").glob(f"{model}_*.model"))[0]
             print(f"removing: {rm_path}")
-            # todo important: change
-            # os.remove(rm_path)
+            os.remove(rm_path)
 
 
 def my_f1_score(y_true, y_pred):
