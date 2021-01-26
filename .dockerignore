@@ -4,3 +4,4 @@ db/models/*
 db/test_data/*
 db/log.txt
 db/api_keys.txt
+db/server_config.txt

@@ -71,9 +71,9 @@ def upload_model():
 
     print("Starting merge...")
     # todo: set this higher
-    dice_thr = 0.0001
-    # merged_model = merge_model(meta["model_type"], model_path, dice_thr)
-    thread = Thread(target=merge_model, args=(meta["model_type"], model_path, dice_thr))
+    dice_thr = -0.1
+    # merged_model = merge_model(meta["model_type"], model_path)
+    thread = Thread(target=merge_model, args=(meta["model_type"], model_path))
     thread.daemon = True
     thread.start()
     merged_model = 1

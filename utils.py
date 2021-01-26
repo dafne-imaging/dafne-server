@@ -3,6 +3,8 @@ import glob
 import datetime
 from collections import defaultdict
 import time
+from pathlib import Path
+import json
 
 import pydicom as dicom
 import numpy as np
@@ -67,13 +69,36 @@ def get_username(api_key):
 
 
 def get_model_types():
-    available_models = [f for f in glob.glob(f"{MODELS_DIR}/*")]
+    available_models = list(glob.glob(f"{MODELS_DIR}/*"))
     return [m.split("/")[-1] for m in available_models]
 
 
 def get_models(model_type):
-    available_models = [f for f in glob.glob(f"{MODELS_DIR}/{model_type}/*.model")]
+    available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/*.model"))
     return sorted([m.split("/")[-1].split(".")[0] for m in available_models])
+
+
+def delete_older_models(model_type, keep_latest=5):
+    """
+    Only keep the newest N models inside of model_type/* and model_type/uploads/*
+    """
+    available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/*.model"))
+    available_models = sorted([m.split("/")[-1].split(".")[0] for m in available_models])
+    if len(available_models) > keep_latest:
+        for model in available_models[:-keep_latest]:
+            rm_path = Path(MODELS_DIR) / model_type / f"{model}.model"
+            print(f"removing: {rm_path}")
+            # todo important: change
+            # os.remove(rm_path)
+
+    available_models = list(glob.glob(f"{MODELS_DIR}/{model_type}/uploads/*.model"))
+    available_models = sorted([m.split("/")[-1].split("_")[0] for m in available_models])
+    if len(available_models) > keep_latest:
+        for model in available_models[:-keep_latest]:
+            rm_path = Path(MODELS_DIR) / model_type / "uploads" / f"{model}.model"
+            print(f"removing: {rm_path}")
+            # todo important: change
+            # os.remove(rm_path)
 
 
 def my_f1_score(y_true, y_pred):
@@ -127,10 +152,12 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
 
     scores = {k: np.array(v).mean() for k, v in scores.items()}
     print(scores)
-    return np.array(list(scores.values())).mean()
+    mean_score = np.array(list(scores.values())).mean()
+    log(f"evaluate_model.mean_score: {mean_score}", p=True)
+    return mean_score
 
 
-def merge_model(model_type, new_model_path, dice_thr=0.8):
+def merge_model(model_type, new_model_path):
     """
     This will take a (weighted) average of the weights of two models.
     If the new_model or the resulting merged model have a lower validation dice score
@@ -138,27 +165,37 @@ def merge_model(model_type, new_model_path, dice_thr=0.8):
     new default model.
     """
     print("Merging...")
+    config = json.load(open("db/server_config.json"))
+
     latest_timestamp = get_models(model_type)[-1]
     latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
     new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
 
-    if evaluate_model(model_type, new_model) < dice_thr: return None
+    if evaluate_model(model_type, new_model) < config["dice_threshold"]: 
+        print("Score is below threshold. Returning None")
+        return None
 
     # todo: is this the right usage of apply_delta?
     merged_model = latest_model.apply_delta(new_model)
 
-    if evaluate_model(model_type, merged_model) < dice_thr: return None
+    if evaluate_model(model_type, merged_model) < config["dice_threshold"]: 
+        print("Score is below threshold. Returning None")
+        return None
 
     print("Saving merged model as new main model...")
     new_model_path = f"{MODELS_DIR}/{model_type}/{str(int(time.time()))}.model"
     merged_model.dump(open(new_model_path, 'wb'))
+    log(f"Saved merged model with timestamp: {merged_model.timestamp_id}", p=True)
 
-    print(f"merged_model.timestamp: {merged_model.timestamp_id}")
+    print("Deleting old models...")
+    delete_older_models(model_type, keep_latest=config["nr_models_to_keep"])
 
     return merged_model
 
 
-def log(text):
+def log(text, p=False):
+    if p:
+        print(text)
     with open("db/log.txt", "a") as f:
         f.write(str(datetime.datetime.now()) + " " + text + "\n")
 
