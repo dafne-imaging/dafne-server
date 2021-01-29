@@ -45,11 +45,9 @@ def get_model():
     model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
     if not os.path.isfile(model):
         return {"message": "invalid model - not found"}, 500
-    model = DynamicDLModel.Load(open(model, "rb"))
-    model_bytes = model.dumps()
     username = get_username(meta["api_key"])
     log(f"get_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
-    return send_file(io.BytesIO(model_bytes), mimetype='image/jpg'), 200
+    return send_file(model, mimetype='application/octet-stream'), 200
 
 
 @app.route('/upload_model', methods=['POST'])
