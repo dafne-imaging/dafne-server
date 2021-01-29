@@ -2,18 +2,9 @@
 
 Regenerating original models (inside of client code):
 
-1. Put original weights into `dafne/weights`
-2. Generate models:
-```
-python generate_thigh_model.py  
-python generate_leg_model.py  
-python generate_thigh_split_model.py  
-python generate_leg_split_model.py  
-python generate_classifier.py  
 ``` 
-3. Copy to `dafne-server/db/models`
-`scp -r ~/dev/dafne/models <username>@www.dafne.network:/mnt/data/dafne-server-db`
-
+./scripts/update_models.sh
+``` 
 
 Updating code on server:
 ``` 
@@ -24,8 +15,6 @@ git pull
 cd ..
 docker build -t dafne-server:master .
 ``` 
-
-
 
 Run docker on server
 ``` 
