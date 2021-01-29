@@ -52,6 +52,7 @@ else:
 
 
 print("------------- Upload model ------------------")
+
 model = DynamicDLModel.Load(open('new_model.model', 'rb'))
 files = {'model_binary': model.dumps()}
 r = requests.post(url_base + "upload_model", files=files,

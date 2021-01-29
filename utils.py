@@ -172,6 +172,13 @@ def merge_model(model_type, new_model_path):
     latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
     new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
 
+    # Check that model_ids are identical
+    if latest_model.model_id != new_model.model_id:
+        print(f"WARNING: Model_IDs do not match. Can not merge models. " +
+              f"({latest_model.model_id} vs {new_model.model_id})")
+        return None
+
+    # Validate dice of uploaded model
     if evaluate_model(model_type, new_model) < config["dice_threshold"]: 
         print("Score is below threshold. Returning None")
         return None
@@ -179,6 +186,7 @@ def merge_model(model_type, new_model_path):
     # todo: is this the right usage of apply_delta?
     merged_model = latest_model.apply_delta(new_model)
 
+    # Validate dice of merged model
     if evaluate_model(model_type, merged_model) < config["dice_threshold"]: 
         print("Score is below threshold. Returning None")
         return None
