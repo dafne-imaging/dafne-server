@@ -15,6 +15,18 @@ url_base = 'http://localhost:5000/'
 
 
 
+print("------------- get available models ------------------")
+
+r = requests.post(url_base + "get_available_models",
+                  json={"api_key": "abc123"})
+if r.ok:
+    models = r.json()['models']
+    print(f"models: {models}")
+else:
+    print(f"status code: {r.status_code}")
+    print(f"message: {r.json()['message']}")
+
+
 print("------------- info model ------------------")
 
 r = requests.post(url_base + "info_model",
@@ -25,7 +37,6 @@ if r.ok:
 else:
     print(f"status code: {r.status_code}")
     print(f"message: {r.json()['message']}")
-
 
 
 print("------------- Get model ------------------")
@@ -40,7 +51,6 @@ else:
     print(f"message: {r.json()['message']}")
 
 
-
 print("------------- Upload model ------------------")
 model = DynamicDLModel.Load(open('new_model.model', 'rb'))
 files = {'model_binary': model.dumps()}
@@ -50,8 +60,8 @@ print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
 
 
-
 os.remove("new_model.model")  # Delete temporary file
+
 
 
 # print("------------- my_test ------------------")

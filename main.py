@@ -16,6 +16,15 @@ from utils import MODELS_DIR
 app = Flask(__name__)
 
 
+@app.route('/get_available_models', methods=["POST"])
+def get_available_models():
+    meta = request.json
+    if not valid_credentials(meta["api_key"]):
+        return {"message": "invalid access code"}, 401
+
+    return {"models": get_model_types()}, 200
+
+
 @app.route('/info_model', methods=["POST"])
 def info_model():
     meta = request.json
