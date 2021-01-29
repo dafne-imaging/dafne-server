@@ -54,12 +54,18 @@ def get_model():
 
 @app.route('/upload_model', methods=['POST'])
 def upload_model():
+    """
+    available data fields:
+        api_key
+        model_type
+        dice (optional)
+    """
     meta = request.form.to_dict()
     if not valid_credentials(meta["api_key"]):
         return {"message": "invalid access code"}, 401
     if meta["model_type"] not in get_model_types():
         return {"message": "invalid model type"}, 500
-            
+
     username = get_username(meta["api_key"])
     model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model_delta = DynamicDLModel.Loads(model_binary)
@@ -75,8 +81,11 @@ def upload_model():
 
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
     model.dump(open(model_path, "wb"))
+    
+    dice = meta["dice"] if "dice" in meta else -1.0
 
-    log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path}")
+    log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path} - client dice {dice}")
+    
 
     print("Starting merge...")
     # todo: set this higher

@@ -55,7 +55,7 @@ print("------------- Upload model ------------------")
 model = DynamicDLModel.Load(open('new_model.model', 'rb'))
 files = {'model_binary': model.dumps()}
 r = requests.post(url_base + "upload_model", files=files,
-                  data={"model_type": "Thigh", "api_key": "abc123"})
+                  data={"model_type": "Thigh", "api_key": "abc123", "dice": 0.3})
 print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
 
