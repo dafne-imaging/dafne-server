@@ -15,6 +15,9 @@ from tqdm import tqdm
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
 from dl.DynamicDLModel import DynamicDLModel
+from dl.labels.thigh import long_labels as thigh_labels
+from dl.labels.thigh import short_labels as thigh_labels_short
+from dl.labels.leg import long_labels as leg_labels
 
 
 MODELS_DIR = "db/models"
@@ -135,20 +138,17 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
         print("WARNING: Only evaluating on a subset of slices for faster runtime.")
         slices = [20,30]
 
+        labels = leg_labels.values() if model_type.startswith("Leg") else thigh_labels.values()
+
         for idx in tqdm(slices):
             slice = data[:, :, idx]
             pred = model.apply({"image": slice, "resolution": res[:2]})
             gt = np.load(file.replace(".nii.gz", ".npz"))
-            
-            pred_keys = pred.keys()
-            gt_keys = gt.files
-            
-            if set(pred_keys) != set(gt_keys):
-                raise ValueError(f"Keys of prediction and groundtruth are different: " +
-                                 f"{pred_keys} vs {gt_keys}")
 
-            for key in pred_keys:
-                dice = my_f1_score(gt[key][:, :, idx], pred[key])
+            for idx, key in enumerate(labels):
+                #todo: adapt this depending on keys of final evaluation data
+                gt_key = thigh_labels_short[idx+1]
+                dice = my_f1_score(gt[gt_key][:, :, idx], pred[key])
                 scores[key].append(dice)
 
     scores = {k: np.array(v).mean() for k, v in scores.items()}
