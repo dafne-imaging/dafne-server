@@ -71,8 +71,9 @@ def upload_model():
 
     model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model_delta = DynamicDLModel.Loads(model_binary)
-    model_orig_path = f"{MODELS_DIR}/{meta['model_type']}/{model_delta.timestamp_id}.model"
-    model_orig = DynamicDLModel.Load(open(model_orig_path, "rb"))
+    #model_orig_path = f"{MODELS_DIR}/{meta['model_type']}/{model_delta.timestamp_id}.model"
+    #model_orig = DynamicDLModel.Load(open(model_orig_path, "rb")) # unused here - see merge_models
+
 
     # calc_delta(): new_model - orig_model = delta
     # apply_delta(): model_orig + delta = model_new
@@ -129,4 +130,4 @@ def my_test():
 
 if __name__ == '__main__':
     # Only for debugging while developing
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)

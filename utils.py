@@ -14,7 +14,7 @@ from tqdm import tqdm
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
-from dl.DynamicDLModel import DynamicDLModel
+from dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
 from dl.labels.thigh import long_labels as thigh_labels
 from dl.labels.thigh import short_labels as thigh_labels_short
 from dl.labels.leg import long_labels as leg_labels
@@ -22,6 +22,8 @@ from dl.labels.leg import long_labels as leg_labels
 
 MODELS_DIR = "db/models"
 TEST_DATA_DIR = "db/test_data"
+
+ORIGINAL_MODEL_WEIGHT = 0.5
 
 # def load_dicom_file(fname):
 #     ds = dicom.read_file(fname)
@@ -34,6 +36,17 @@ TEST_DATA_DIR = "db/test_data"
 #     ds.PixelData = ""
 #     return pixelData, ds
 
+def keras_weighted_average(lhs: DynamicDLModel, rhs: DynamicDLModel, lhs_weight = 0.5):
+    if lhs.model_id != rhs.model_id: raise IncompatibleModelError
+    lhs_weights = lhs.get_weights()
+    rhs_weights = rhs.get_weights()
+    newWeights = []
+    for depth in range(len(lhs_weights)):
+        average = lhs_weights[depth]*lhs_weight + rhs_weights[depth]*(1-lhs_weight)
+        newWeights.append(average)
+    outputObj = lhs.get_empty_copy()
+    outputObj.set_weights(newWeights)
+    return outputObj
 
 def load_dicom_file(fname):
     print(fname)
@@ -183,8 +196,10 @@ def merge_model(model_type, new_model_path):
         print("Score is below threshold. Returning None")
         return None
 
-    # todo: is this the right usage of apply_delta?
-    merged_model = latest_model.apply_delta(new_model)
+    # The following is only valid if we are applying a difference between two models. However, we are sending a full model
+    # merged_model = latest_model.apply_delta(new_model)
+
+    merged_model = keras_weighted_average(latest_model, new_model, lhs_weight=ORIGINAL_MODEL_WEIGHT)
 
     # Validate dice of merged model
     if evaluate_model(model_type, merged_model) < config["dice_threshold"]: 
