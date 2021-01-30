@@ -69,21 +69,20 @@ def upload_model():
         log(f"Upload request of {meta['model_type']} from {username} rejected because model type is invalid")
         return {"message": "invalid model type"}, 500
 
-    model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
-    model_delta = DynamicDLModel.Loads(model_binary)
+    #model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
+    #model_delta = DynamicDLModel.Loads(model_binary)
     #model_orig_path = f"{MODELS_DIR}/{meta['model_type']}/{model_delta.timestamp_id}.model"
     #model_orig = DynamicDLModel.Load(open(model_orig_path, "rb")) # unused here - see merge_models
-
-
     # calc_delta(): new_model - orig_model = delta
     # apply_delta(): model_orig + delta = model_new
-
     # Model delta: only activate if rest of federated learning working properly
     # model = model_orig.apply_delta(model_delta)
-    model = model_delta
+    #model = model_delta
 
+    # directly save received model to disk
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
-    model.dump(open(model_path, "wb"))
+    request.files['model_binary'].save(model_path)
+    #model.dump(open(model_path, "wb"))
     
     dice = meta["dice"] if "dice" in meta else -1.0
 
