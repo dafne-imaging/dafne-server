@@ -60,11 +60,15 @@ def upload_model():
     """
     meta = request.form.to_dict()
     if not valid_credentials(meta["api_key"]):
+        log(f"Upload request of {meta['model_type']} rejected because api key {meta['api_key']} is invalid")
         return {"message": "invalid access code"}, 401
-    if meta["model_type"] not in get_model_types():
-        return {"message": "invalid model type"}, 500
 
     username = get_username(meta["api_key"])
+
+    if meta["model_type"] not in get_model_types():
+        log(f"Upload request of {meta['model_type']} from {username} rejected because model type is invalid")
+        return {"message": "invalid model type"}, 500
+
     model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     model_delta = DynamicDLModel.Loads(model_binary)
     model_orig_path = f"{MODELS_DIR}/{meta['model_type']}/{model_delta.timestamp_id}.model"
