@@ -199,7 +199,9 @@ def merge_model(model_type, new_model_path):
     # The following is only valid if we are applying a difference between two models. However, we are sending a full model
     # merged_model = latest_model.apply_delta(new_model)
 
-    merged_model = keras_weighted_average(latest_model, new_model, lhs_weight=ORIGINAL_MODEL_WEIGHT)
+    #merged_model = keras_weighted_average(latest_model, new_model, lhs_weight=ORIGINAL_MODEL_WEIGHT)
+    # The following is slower but more general (not limited to keras models, using the internal multiplication/sum functionality)
+    merged_model = latest_model*ORIGINAL_MODEL_WEIGHT + new_model*(1-ORIGINAL_MODEL_WEIGHT)
 
     # Validate dice of merged model
     if evaluate_model(model_type, merged_model) < config["dice_threshold"]: 
