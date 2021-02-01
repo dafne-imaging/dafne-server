@@ -23,8 +23,6 @@ from dl.labels.leg import long_labels as leg_labels
 MODELS_DIR = "db/models"
 TEST_DATA_DIR = "db/test_data"
 
-ORIGINAL_MODEL_WEIGHT = 0.5
-
 # def load_dicom_file(fname):
 #     ds = dicom.read_file(fname)
 #     # rescale dynamic range to 0-4095
@@ -187,13 +185,13 @@ def merge_model(model_type, new_model_path):
 
     # Check that model_ids are identical
     if latest_model.model_id != new_model.model_id:
-        print(f"WARNING: Model_IDs do not match. Can not merge models. " +
-              f"({latest_model.model_id} vs {new_model.model_id})")
+        log(f"WARNING: Model_IDs do not match. Can not merge models. " +
+              f"({latest_model.model_id} vs {new_model.model_id})", True)
         return None
 
     # Validate dice of uploaded model
     if evaluate_model(model_type, new_model) < config["dice_threshold"]: 
-        print("Score is below threshold. Returning None")
+        log("Score of new model is below threshold.", True)
         return None
 
     # The following is only valid if we are applying a difference between two models. However, we are sending a full model
@@ -201,11 +199,12 @@ def merge_model(model_type, new_model_path):
 
     #merged_model = keras_weighted_average(latest_model, new_model, lhs_weight=ORIGINAL_MODEL_WEIGHT)
     # The following is slower but more general (not limited to keras models, using the internal multiplication/sum functionality)
-    merged_model = latest_model*ORIGINAL_MODEL_WEIGHT + new_model*(1-ORIGINAL_MODEL_WEIGHT)
+    original_weight = config["original_model_weight"]
+    merged_model = latest_model*original_weight + new_model*(1-original_weight)
 
     # Validate dice of merged model
-    if evaluate_model(model_type, merged_model) < config["dice_threshold"]: 
-        print("Score is below threshold. Returning None")
+    if evaluate_model(model_type, merged_model) < config["dice_threshold"]:
+        log("Score of the merged model is below threshold.")
         return None
 
     print("Saving merged model as new main model...")
