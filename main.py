@@ -1,5 +1,5 @@
 import os, glob, time, io
-from threading import Thread
+import multiprocessing
 
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -91,12 +91,11 @@ def upload_model():
     
 
     print("Starting merge...")
-    # todo: set this higher
-    dice_thr = -0.1
     # merged_model = merge_model(meta["model_type"], model_path)  # same thread
-    thread = Thread(target=merge_model, args=(meta["model_type"], model_path))  # own thread
-    thread.daemon = True
-    thread.start()
+
+    ps = multiprocessing.Process(target=merge_model, args=(meta["model_type"], model_path))
+    ps.start()
+
     merged_model = 1
 
     if merged_model is not None:
@@ -127,27 +126,6 @@ def upload_data():
 
     log(f"upload_data accessed by {username} - upload successful")
     return {"message": "upload successful"}, 200
-
-
-# def my_async_func(a):
-#     print("Inside async: starting")
-#     print(f"Inside async: param: {a}")
-#     time.sleep(4)    
-#     print("Inside async: ending")
-#     return 5
-
-# @app.route('/my_test', methods=["POST"])
-# def my_test():
-#     meta = request.json
-#     print("Inside my_test()")
-    
-#     print("Calling async thread...")
-#     thread = Thread(target=my_async_func, args=("what",))
-#     thread.daemon = True
-#     thread.start()
-
-#     print("Inside my_test(): returning")
-#     return {"latest_timestamp": 123}, 200
 
 
 if __name__ == '__main__':

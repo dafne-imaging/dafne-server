@@ -8,3 +8,5 @@ pydicom
 MarkupSafe
 dill
 requests
+SimpleITK
+scikit-image

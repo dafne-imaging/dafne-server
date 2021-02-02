@@ -17,8 +17,9 @@
 # print(f"score: {score}")
 
 
-from multiprocessing import Process
 from time import sleep
+from multiprocessing import Process
+from threading import Thread
 
 def f(name):
     sleep(3)
@@ -29,8 +30,13 @@ def my_test():
     print("1--")
 
     p = Process(target=f, args=('bob',), daemon=False)
-    p.start()
+    # p.start()
     # p.join()
+    
+    thread = Thread(target=f, args=('bob_thread', ))
+    thread.daemon = True
+    thread.start()
+
     return "what"
 
 if __name__ == '__main__':
