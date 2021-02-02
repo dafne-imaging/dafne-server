@@ -23,9 +23,9 @@ mkdir -p ~/dev/dafne-server/db/models/Thigh/uploads
 cp ~/dev/dafne/models/Leg_1610001000.model ~/dev/dafne-server/db/models/Leg/1610001000.model
 cp ~/dev/dafne/models/Thigh_1610001000.model ~/dev/dafne-server/db/models/Thigh/1610001000.model
 
-# echo "Uploading to server..."
-# scp -r ~/dev/dafne-server/db/models j_wasserthal_gmx_de@www.dafne.network:/mnt/data/dafne-server-db
+echo "Uploading to server..."
+scp -r ~/dev/dafne-server/db/models j_wasserthal_gmx_de@www.dafne.network:/mnt/data/dafne-server-dbll
 
-# echo "Testing..."
-# cd ~/dev/dafne-script
-# python test_api.py
+echo "Testing..."
+cd ~/dev/dafne-script
+python test_api.py

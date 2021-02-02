@@ -1,5 +1,5 @@
 import os, glob, time, io
-import multiprocessing
+from threading import Thread
 
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -93,8 +93,10 @@ def upload_model():
     print("Starting merge...")
     # merged_model = merge_model(meta["model_type"], model_path)  # same thread
 
-    ps = multiprocessing.Process(target=merge_model, args=(meta["model_type"], model_path))
-    ps.start()
+    # Thread needed. With multiprocessing.Process this will block in docker+nginx
+    # (daemon=True/False works both)
+    merge_thread = Thread(target=merge_model, args=(meta["model_type"], model_path), daemon=False)
+    merge_thread.start()
 
     merged_model = 1
 

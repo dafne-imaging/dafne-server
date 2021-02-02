@@ -188,12 +188,12 @@ def merge_model(model_type, new_model_path):
     if latest_model.model_id != new_model.model_id:
         log(f"WARNING: Model_IDs do not match. Can not merge models. " +
               f"({latest_model.model_id} vs {new_model.model_id})", True)
-        return None
+        return
 
     # Validate dice of uploaded model
     if evaluate_model(model_type, new_model) < config["dice_threshold"]: 
         log("Score of new model is below threshold.", True)
-        return None
+        return
 
     # The following is only valid if we are applying a difference between two models. However, we are sending a full model
     # merged_model = latest_model.apply_delta(new_model)
@@ -206,7 +206,7 @@ def merge_model(model_type, new_model_path):
     # Validate dice of merged model
     if evaluate_model(model_type, merged_model) < config["dice_threshold"]:
         log("Score of the merged model is below threshold.")
-        return None
+        return
 
     print("Saving merged model as new main model...")
     new_model_path = f"{MODELS_DIR}/{model_type}/{str(int(time.time()))}.model"
@@ -216,7 +216,7 @@ def merge_model(model_type, new_model_path):
     print("Deleting old models...")
     delete_older_models(model_type, keep_latest=config["nr_models_to_keep"])
 
-    return merged_model
+    return
 
 
 def log(text, p=False):

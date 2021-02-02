@@ -14,7 +14,6 @@ url_base = 'http://localhost:5000/'
 # url_base = 'http://www.dafne.network:5000/'
 
 
-
 print("------------- get available models ------------------")
 
 r = requests.post(url_base + "get_available_models",
