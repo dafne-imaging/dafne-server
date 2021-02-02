@@ -60,9 +60,17 @@ r = requests.post(url_base + "upload_model", files=files,
 print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
 
-
 os.remove("new_model.model")  # Delete temporary file
 
+
+print("------------- Upload data ------------------")
+
+filename = "db/test_data/subject001.nii.gz"
+files = {'data_binary': open(filename, 'rb')}
+r = requests.post(url_base + "upload_data", files=files,
+                  data={"api_key": "abc123"})
+print(f"status code: {r.status_code}")
+print(f"message: {r.json()['message']}")
 
 
 # print("------------- my_test ------------------")

@@ -15,6 +15,7 @@ from utils import MODELS_DIR
 
 app = Flask(__name__)
 
+DB_DIR = "db"
 
 @app.route('/get_available_models', methods=["POST"])
 def get_available_models():
@@ -105,26 +106,48 @@ def upload_model():
         return {"message": "merging of models failed, because validation Dice too low."}, 500
 
 
+@app.route('/upload_data', methods=['POST'])
+def upload_data():
+    """
+    Upload user data and save them to db/uploaded_data/<username>/<timestamp>.npz
 
-def my_async_func(a):
-    print("Inside async: starting")
-    print(f"Inside async: param: {a}")
-    time.sleep(4)    
-    print("Inside async: ending")
-    return 5
+    available data fields:
+        api_key
+    """
+    meta = request.form.to_dict()
+    if not valid_credentials(meta["api_key"]):
+        log(f"Upload request of {meta['model_type']} rejected because api key {meta['api_key']} is invalid")
+        return {"message": "invalid access code"}, 401
 
-@app.route('/my_test', methods=["POST"])
-def my_test():
-    meta = request.json
-    print("Inside my_test()")
+    username = get_username(meta["api_key"])
+
+    data_dir = f"{DB_DIR}/uploaded_data/{username}"
+    if not os.path.exists(data_dir): os.makedirs(data_dir)
+    request.files['data_binary'].save(f"{data_dir}/{int(time.time())}.npz")
+
+    log(f"upload_data accessed by {username} - upload successful")
+    return {"message": "upload successful"}, 200
+
+
+# def my_async_func(a):
+#     print("Inside async: starting")
+#     print(f"Inside async: param: {a}")
+#     time.sleep(4)    
+#     print("Inside async: ending")
+#     return 5
+
+# @app.route('/my_test', methods=["POST"])
+# def my_test():
+#     meta = request.json
+#     print("Inside my_test()")
     
-    print("Calling async thread...")
-    thread = Thread(target=my_async_func, args=("what",))
-    thread.daemon = True
-    thread.start()
+#     print("Calling async thread...")
+#     thread = Thread(target=my_async_func, args=("what",))
+#     thread.daemon = True
+#     thread.start()
 
-    print("Inside my_test(): returning")
-    return {"latest_timestamp": 123}, 200
+#     print("Inside my_test(): returning")
+#     return {"latest_timestamp": 123}, 200
 
 
 if __name__ == '__main__':
