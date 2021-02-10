@@ -33,3 +33,8 @@ Upload docker to server
 ``` 
 docker save dafne-server:master | ssh -C <username>@www.dafne.network docker load
 ``` 
+
+Backup to local harddrive
+``` 
+rsync -avz <username>@www.dafne.network:/mnt/data/dafne-server-db /mnt/jay_hdd/backup
+``` 

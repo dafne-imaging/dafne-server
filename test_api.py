@@ -11,7 +11,7 @@ Then in another shell run `python test_api.py`.
 """
 
 url_base = 'http://localhost:5000/'
-# url_base = 'http://www.dafne.network:5000/'
+# url_base = 'https://www.dafne.network:5001/'
 
 
 print("------------- get available models ------------------")
