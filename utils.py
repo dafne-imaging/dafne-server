@@ -203,13 +203,15 @@ def merge_model(model_type, new_model_path):
     original_weight = config["original_model_weight"]
     merged_model = latest_model*original_weight + new_model*(1-original_weight)
 
+    merged_model.reset_timestamp()
+
     # Validate dice of merged model
     if evaluate_model(model_type, merged_model) < config["dice_threshold"]:
         log("Score of the merged model is below threshold.")
         return
 
     print("Saving merged model as new main model...")
-    new_model_path = f"{MODELS_DIR}/{model_type}/{str(int(time.time()))}.model"
+    new_model_path = f"{MODELS_DIR}/{model_type}/{merged_model.timestamp_id}.model"
     merged_model.dump(open(new_model_path, 'wb'))
     log(f"Saved merged model with timestamp: {merged_model.timestamp_id}", p=True)
 
