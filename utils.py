@@ -15,8 +15,10 @@ from tqdm import tqdm
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
 from dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
-from dl.labels.thigh import long_labels_split as thigh_labels
-from dl.labels.leg import long_labels_split as leg_labels
+# from dl.labels.thigh import long_labels_split as thigh_labels
+# from dl.labels.leg import long_labels_split as leg_labels
+from dl.labels.thigh import long_labels as thigh_labels
+from dl.labels.leg import long_labels as leg_labels
 from dl.labels.thigh import short_labels as thigh_labels_short
 
 
@@ -153,12 +155,13 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
 
         for idx in tqdm(slices):
             slice = data[:, :, idx]
-            pred = model.apply({"image": slice, "resolution": res[:2], "split_laterality": True})
+            pred = model.apply({"image": slice, "resolution": res[:2], "split_laterality": False})
             gt = np.load(file.replace(".nii.gz", ".npz"))
 
             for idx, key in enumerate(labels):
                 #todo: adapt this depending on keys of final evaluation data
-                gt_idx = max(1, int((idx+1) / 2))  # this needs to be changed when using proper testing data
+                # gt_idx = max(1, int((idx+1) / 2))  # this needs to be changed when using proper testing data
+                gt_idx = idx+1
                 gt_key = thigh_labels_short[gt_idx]
                 dice = my_f1_score(gt[gt_key][:, :, idx], pred[key])
                 scores[key].append(dice)
