@@ -153,7 +153,11 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
 
         for idx in tqdm(slices):
             slice = data[:, :, idx]
-            pred = model.apply({"image": slice, "resolution": res[:2], "split_laterality": True})
+            try:
+                pred = model.apply({"image": slice, "resolution": res[:2], "split_laterality": True})
+            except:
+                log("Error while evaluating new model. Model might be corrupt")
+                return -1
             gt = np.load(file.replace(".nii.gz", ".npz"))
 
             for idx, key in enumerate(labels):
@@ -182,7 +186,11 @@ def merge_model(model_type, new_model_path):
 
     latest_timestamp = get_models(model_type)[-1]
     latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
-    new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
+    try:
+        new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
+    except:
+        log("Error loading received model")
+        return
 
     # Check that model_ids are identical
     if latest_model.model_id != new_model.model_id:

@@ -12,6 +12,7 @@ from dl.LocalModelProvider import LocalModelProvider
 from dl.DynamicDLModel import DynamicDLModel
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
 from utils import MODELS_DIR
+from dl.misc import calculate_file_hash
 
 app = Flask(__name__)
 
@@ -33,7 +34,9 @@ def info_model():
         return {"message": "invalid access code"}, 401
 
     latest_timestamp = get_models(meta["model_type"])[-1]
-    return {"latest_timestamp": latest_timestamp}, 200
+    latest_model_path = f"{MODELS_DIR}/{meta['model_type']}/{latest_timestamp}.model"
+    model_hash = calculate_file_hash(latest_model_path, True)
+    return {"latest_timestamp": latest_timestamp, "hash": model_hash}, 200
 
 
 @app.route('/get_model', methods=["POST"])  
@@ -83,12 +86,18 @@ def upload_model():
     # directly save received model to disk
     model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
     request.files['model_binary'].save(model_path)
-    #model.dump(open(model_path, "wb"))
-    
+
     dice = meta["dice"] if "dice" in meta else -1.0
 
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path} - client dice {dice}")
-    
+
+    original_hash = meta["hash"]
+    local_hash = calculate_file_hash(model_path)
+    if original_hash != local_hash:
+        log("Error during model upload")
+        return {"message": "Communication error during upload"}, 500
+
+    #model.dump(open(model_path, "wb"))
 
     print("Starting merge...")
     # merged_model = merge_model(meta["model_type"], model_path)  # same thread
