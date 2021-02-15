@@ -91,9 +91,14 @@ def upload_model():
 
     log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path} - client dice {dice}")
 
-    original_hash = meta["hash"]
+    try:
+        original_hash = meta["hash"]
+    except:
+        original_hash = None
+
     local_hash = calculate_file_hash(model_path)
-    if original_hash != local_hash:
+
+    if original_hash is not None and original_hash != local_hash:
         log("Error during model upload")
         return {"message": "Communication error during upload"}, 500
 
