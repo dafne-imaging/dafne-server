@@ -215,7 +215,9 @@ def merge_model(model_type, new_model_path):
 
     print("Saving merged model as new main model...")
     new_model_path = f"{MODELS_DIR}/{model_type}/{merged_model.timestamp_id}.model"
-    merged_model.dump(open(new_model_path, 'wb'))
+    temp_model_path = new_model_path + '.tmp'
+    merged_model.dump(open(temp_model_path, 'wb')) # write to a tmp file to avoid serving an incompletely written model
+    os.rename(temp_model_path, new_model_path)
     log(f"Saved merged model with timestamp: {merged_model.timestamp_id}", p=True)
 
     print("Deleting old models...")
