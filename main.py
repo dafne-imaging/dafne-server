@@ -11,6 +11,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
 from dl.LocalModelProvider import LocalModelProvider
 from dl.DynamicDLModel import DynamicDLModel
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
+from utils import evaluate_model as utils_evaluate_model
 from utils import MODELS_DIR
 from dl.misc import calculate_file_hash
 
@@ -143,6 +144,24 @@ def upload_data():
 
     log(f"upload_data accessed by {username} - upload successful")
     return {"message": "upload successful"}, 200
+
+
+@app.route('/evaluate_model', methods=["POST"])  
+def evaluate_model():
+    meta = request.json
+    if not valid_credentials(meta["api_key"]):
+        return {"message": "invalid access code"}, 401
+
+    username = get_username(meta["api_key"])
+    log(f"evaluate_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
+
+    model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
+    if not os.path.isfile(model):
+        return {"message": "invalid model - not found"}, 500
+    model = DynamicDLModel.Load(open(model, 'rb'))
+    
+    dice = utils_evaluate_model(meta['model_type'], model, log=False)
+    return {"dice": dice}, 200
 
 
 if __name__ == '__main__':

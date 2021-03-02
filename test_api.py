@@ -10,8 +10,8 @@ Start server by running `python main.py`.
 Then in another shell run `python test_api.py`.  
 """
 
-# url_base = 'http://localhost:5000/'
-url_base = 'https://www.dafne.network:5001/'
+url_base = 'http://localhost:5000/'
+# url_base = 'https://www.dafne.network:5001/'
 
 
 model_type = "Thigh"
@@ -76,15 +76,14 @@ print(f"status code: {r.status_code}")
 print(f"message: {r.json()['message']}")
 
 
-# print("------------- my_test ------------------")
+print("------------- Evaluate model ------------------")
 
-# r = requests.post(url_base + "my_test",
-#                   json={"model_type": "Thigh", "api_key": "abc123"})
-# if r.ok:
-#     latest_timestamp = r.json()['latest_timestamp']
-#     print(f"latest_timestamp: {latest_timestamp}")
-# else:
-#     print(f"status code: {r.status_code}")
-#     print(f"message: {r.json()['message']}")
+r = requests.post(url_base + "evaluate_model",
+                  json={"model_type": model_type, "timestamp": "1610001000", "api_key": "abc123"})
+if r.ok:
+    print(f"dice: {r.json()['dice']:.6f}")
+else:
+    print(f"status code: {r.status_code}")
+    print(f"message: {r.json()['message']}")
 
 

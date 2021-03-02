@@ -127,7 +127,7 @@ def _get_nonzero_slices(mask):
     return slices
 
 
-def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
+def evaluate_model(model_type: str, model: DynamicDLModel, log=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
@@ -159,7 +159,9 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
     
     scores_flat = np.array(scores_flat)
     mean_score = np.average(scores_flat[:, 0], weights=scores_flat[:, 1])
-    log(f"evaluate_model.mean_score: {mean_score}", p=True)
+    if log:
+        log(f"evaluating model {model_type}/{model.timestamp_id}.model: Dice: {mean_score:.6f}", p=True)
+        log_dice_to_csv(f"{model_type}/{model.timestamp_id}.model", mean_score)
     return mean_score
 
 
@@ -220,8 +222,11 @@ def log(text, p=False):
     if p:
         print(text)
     with open("db/log.txt", "a") as f:
-        f.write(str(datetime.datetime.now()) + " " + text + "\n")
+        f.write(f"{datetime.datetime.now()} {text}\n")
 
+def log_dice_to_csv(model_name, dice):
+    with open("db/dice.csv", "a") as f:
+        f.write(f"{datetime.datetime.now()};{model_name};{dice:.6f}\n")
 
 if __name__ == '__main__':
     ####### For testing #######
