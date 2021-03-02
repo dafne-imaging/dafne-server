@@ -10,8 +10,8 @@ Start server by running `python main.py`.
 Then in another shell run `python test_api.py`.  
 """
 
-url_base = 'http://localhost:5000/'
-# url_base = 'https://www.dafne.network:5001/'
+# url_base = 'http://localhost:5000/'
+url_base = 'https://www.dafne.network:5001/'
 
 
 model_type = "Thigh"
@@ -68,7 +68,7 @@ os.remove("new_model.model")  # Delete temporary file
 
 print("------------- Upload data ------------------")
 
-filename = "db/test_data/Leg/leg_SE_nsl4_73_20190617.npz"
+filename = "db/test_data/Leg/leg_GRE_nsl2_21_20190204.npz"
 files = {'data_binary': open(filename, 'rb')}
 r = requests.post(url_base + "upload_data", files=files,
                   data={"api_key": "abc123"})

@@ -18,7 +18,8 @@ docker run -d --restart always -p 5000:80 --name dafne-server-job -v /mnt/data/d
 
 Stop docker
 ```
-docker stop dafne-server-job
+docker stop dafne-server-job  
+docker rm $(sudo docker ps -a -q -f status=exited)  
 ```
 
 
