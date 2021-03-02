@@ -20,6 +20,7 @@ from dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
 from dl.labels.thigh import long_labels as thigh_labels
 from dl.labels.leg import long_labels as leg_labels
 from dl.labels.thigh import short_labels as thigh_labels_short
+from dl.misc import calc_dice_score
 
 
 MODELS_DIR = "db/models"
@@ -118,57 +119,46 @@ def delete_older_models(model_type, keep_latest=5):
             os.remove(rm_path)
 
 
-def my_f1_score(y_true, y_pred):
-    """
-    Binary f1. Same results as sklearn f1 binary.
-
-    y_true: 1D / 2D / 3D array
-    y_pred: 1D / 2D / 3D array
-    """
-    intersect = np.sum(y_true * y_pred)  # works because all multiplied by 0 gets 0
-    denominator = np.sum(y_true) + np.sum(y_pred)  # works because all multiplied by 0 gets 0
-    f1 = (2 * intersect) / (denominator + 1e-6)
-    return f1
+def _get_nonzero_slices(mask):
+    slices = []
+    for idx in range(mask.shape[2]):
+        if mask[:,:,idx].max() > 0:
+            slices.append(idx)
+    return slices
 
 
 def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
-    
-    if model_type != "Thigh":
-        print("WARNING: Validation data only available for thigh model. Skipping validation!")
-        return 1.0
+    """
+    This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
+    Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
+    per subject).
+    """
+    labels = leg_labels.values() if model_type.startswith("Leg") else thigh_labels.values()
 
-    for file in glob.glob(f"{TEST_DATA_DIR}/*.nii.gz"):
-        print(f"Processing subject: {str(file).split('/')[-1]}")
-        # data, res, _ = load_dicom_file(file)
-        img = nib.load(file)
-        res = img.header.get_zooms()
-        data = img.get_fdata()
-
+    for file in Path(TEST_DATA_DIR).glob(f"{model_type}/*.npz"):
+        print(f"Processing subject: {file.name}")
+        img = np.load(file)
+        slices_idxs = _get_nonzero_slices(img[f"mask_{list(labels)[0]}"])
         scores = defaultdict(list)
-        slices = range(data.shape[2])
+        for idx in tqdm(slices_idxs):
+            pred = model.apply({"image": img["data"][:, :, idx],
+                                "resolution": img["resolution"][:2],
+                                "split_laterality": False})
+            for label in labels:
+                gt = img[f"mask_{label}"][:, :, idx]
+                nr_voxels = gt.sum()
+                dice = calc_dice_score(gt, pred[label])
+                scores[label].append([dice, nr_voxels])
 
-        #todo: remove this to use all slices
-        print("WARNING: Only evaluating on a subset of slices for faster runtime.")
-        slices = [20,30]
-
-        labels = leg_labels.values() if model_type.startswith("Leg") else thigh_labels.values()
-
-        for idx in tqdm(slices):
-            slice = data[:, :, idx]
-            pred = model.apply({"image": slice, "resolution": res[:2], "split_laterality": False})
-            gt = np.load(file.replace(".nii.gz", ".npz"))
-
-            for idx, key in enumerate(labels):
-                #todo: adapt this depending on keys of final evaluation data
-                # gt_idx = max(1, int((idx+1) / 2))  # this needs to be changed when using proper testing data
-                gt_idx = idx+1
-                gt_key = thigh_labels_short[gt_idx]
-                dice = my_f1_score(gt[gt_key][:, :, idx], pred[key])
-                scores[key].append(dice)
-
-    scores = {k: np.array(v).mean() for k, v in scores.items()}
-    print(scores)
-    mean_score = np.array(list(scores.values())).mean()
+    scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
+    print(scores_per_label)
+    scores_flat = []
+    for key, val in scores.items():
+        for elem in val:
+            scores_flat.append(elem)
+    
+    scores_flat = np.array(scores_flat)
+    mean_score = np.average(scores_flat[:, 0], weights=scores_flat[:, 1])
     log(f"evaluate_model.mean_score: {mean_score}", p=True)
     return mean_score
 
@@ -235,5 +225,5 @@ def log(text, p=False):
 
 if __name__ == '__main__':
     ####### For testing #######
-    model = DynamicDLModel.Load(open(f"{MODELS_DIR}/thigh/1603281013.model", 'rb'))
-    r = evaluate_model("thigh", model)
+    model = DynamicDLModel.Load(open(f"{MODELS_DIR}/Thigh/1610001000.model", 'rb'))
+    r = evaluate_model("Thigh", model)

@@ -16,6 +16,7 @@ from dl.misc import calculate_file_hash
 
 app = Flask(__name__)
 
+# On the server /mnt/data/dafne-server-db will be mounted to db when starting the docker container
 DB_DIR = "db"
 
 @app.route('/get_available_models', methods=["POST"])
