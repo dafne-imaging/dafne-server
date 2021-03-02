@@ -13,4 +13,5 @@ dist/
 old/
 log.txt
 models_old*
-
+*.dcm
+*.sha256
