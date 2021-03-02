@@ -81,7 +81,7 @@ print("------------- Evaluate model ------------------")
 r = requests.post(url_base + "evaluate_model",
                   json={"model_type": model_type, "timestamp": "1610001000", "api_key": "abc123"})
 if r.ok:
-    print(f"dice: {r.json()['dice']:.6f}")
+    print(f"message: {r.json()['message']}")
 else:
     print(f"status code: {r.status_code}")
     print(f"message: {r.json()['message']}")

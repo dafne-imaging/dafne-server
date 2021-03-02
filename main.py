@@ -160,8 +160,10 @@ def evaluate_model():
         return {"message": "invalid model - not found"}, 500
     model = DynamicDLModel.Load(open(model, 'rb'))
     
-    dice = utils_evaluate_model(meta['model_type'], model, save_log=False)
-    return {"dice": dice}, 200
+    eval_thread = Thread(target=utils_evaluate_model, args=(meta["model_type"], model, False), daemon=False)
+    eval_thread.start()
+
+    return {"message": "starting evaluation successful"}, 200
 
 
 if __name__ == '__main__':
