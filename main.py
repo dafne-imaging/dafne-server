@@ -160,7 +160,7 @@ def evaluate_model():
         return {"message": "invalid model - not found"}, 500
     model = DynamicDLModel.Load(open(model, 'rb'))
     
-    dice = utils_evaluate_model(meta['model_type'], model, log=False)
+    dice = utils_evaluate_model(meta['model_type'], model, save_log=False)
     return {"dice": dice}, 200
 
 

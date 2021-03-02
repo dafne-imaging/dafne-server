@@ -127,7 +127,7 @@ def _get_nonzero_slices(mask):
     return slices
 
 
-def evaluate_model(model_type: str, model: DynamicDLModel, log=True) -> float:
+def evaluate_model(model_type: str, model: DynamicDLModel, save_log=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
@@ -159,7 +159,7 @@ def evaluate_model(model_type: str, model: DynamicDLModel, log=True) -> float:
     
     scores_flat = np.array(scores_flat)
     mean_score = np.average(scores_flat[:, 0], weights=scores_flat[:, 1])
-    if log:
+    if save_log:
         log(f"evaluating model {model_type}/{model.timestamp_id}.model: Dice: {mean_score:.6f}", p=True)
         log_dice_to_csv(f"{model_type}/{model.timestamp_id}.model", mean_score)
     return mean_score
