@@ -22,6 +22,11 @@ docker stop dafne-server-job
 docker rm $(sudo docker ps -a -q -f status=exited)  
 ```
 
+See stdout of running docker container
+```
+docker logs dafne-server-job  
+```
+
 
 ## Other commands
 
