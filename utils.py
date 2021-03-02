@@ -142,7 +142,7 @@ def evaluate_model(model_type: str, model: DynamicDLModel) -> float:
         scores = defaultdict(list)
         for idx in tqdm(slices_idxs):
             pred = model.apply({"image": img["data"][:, :, idx],
-                                "resolution": img["resolution"][:2],
+                                "resolution": np.abs(img["resolution"][:2]),
                                 "split_laterality": False})
             for label in labels:
                 gt = img[f"mask_{label}"][:, :, idx]

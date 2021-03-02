@@ -1,14 +1,9 @@
 ## Helpful commands for setting up the google cloud server
 
-Regenerating original models (inside of client code):
-
-``` 
-./scripts/update_models.sh
-``` 
 
 Updating code on server:
 ``` 
-cd dev/dafne-server
+cd /mnt/data/code/dafne-server
 git pull
 cd dl
 git pull
