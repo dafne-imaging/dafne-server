@@ -15,3 +15,4 @@ log.txt
 models_old*
 *.dcm
 *.sha256
+*.csv
