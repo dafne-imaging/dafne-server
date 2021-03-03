@@ -127,13 +127,15 @@ def _get_nonzero_slices(mask):
     return slices
 
 
-def evaluate_model(model_type: str, model: DynamicDLModel, save_log=True) -> float:
+def evaluate_model(model_type: str, model: DynamicDLModel, save_log=True, comment='') -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
     per subject).
     """
     labels = leg_labels.values() if model_type.startswith("Leg") else thigh_labels.values()
+
+    t = time.time()
 
     for file in Path(TEST_DATA_DIR).glob(f"{model_type}/*.npz"):
         print(f"Processing subject: {file.name}")
@@ -159,8 +161,9 @@ def evaluate_model(model_type: str, model: DynamicDLModel, save_log=True) -> flo
     
     scores_flat = np.array(scores_flat)
     mean_score = np.average(scores_flat[:, 0], weights=scores_flat[:, 1])
+    elapsed = time.time() - t
     if save_log:
-        log(f"evaluating model {model_type}/{model.timestamp_id}.model: Dice: {mean_score:.6f}", p=True)
+        log(f"evaluating model {model_type}/{model.timestamp_id}.model: Dice: {mean_score:.6f} (time: {elapsed:.2}) {comment})", p=True)
         log_dice_to_csv(f"{model_type}/{model.timestamp_id}.model", mean_score)
     return mean_score
 
@@ -186,7 +189,7 @@ def merge_model(model_type, new_model_path):
         return
 
     # Validate dice of uploaded model
-    if evaluate_model(model_type, new_model) < config["dice_threshold"]: 
+    if evaluate_model(model_type, new_model, comment='(Uploaded model)') < config["dice_threshold"]:
         log("Score of new model is below threshold.", True)
         return
 
@@ -201,7 +204,7 @@ def merge_model(model_type, new_model_path):
     merged_model.reset_timestamp()
 
     # Validate dice of merged model
-    if evaluate_model(model_type, merged_model) < config["dice_threshold"]:
+    if evaluate_model(model_type, merged_model, comment='(Merged model)') < config["dice_threshold"]:
         log("Score of the merged model is below threshold.")
         return
 
@@ -224,9 +227,9 @@ def log(text, p=False):
     with open("db/log.txt", "a") as f:
         f.write(f"{datetime.datetime.now()} {text}\n")
 
-def log_dice_to_csv(model_name, dice):
+def log_dice_to_csv(model_name, dice, comment=''):
     with open("db/dice.csv", "a") as f:
-        f.write(f"{datetime.datetime.now()};{model_name};{dice:.6f}\n")
+        f.write(f"{datetime.datetime.now()};{model_name};{dice:.6f};{comment}\n")
 
 if __name__ == '__main__':
     ####### For testing #######
