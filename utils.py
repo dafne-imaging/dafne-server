@@ -146,7 +146,13 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
     n_voxels = []
     for file in test_files:
         print(f"Processing subject: {file.name}")
-        img = np.load(file)
+        # actually load the data. It speeds things up dramatically, otherwise the file is kept memory-mapped from disk.
+        img = {}
+        with np.load(file) as npz_file:
+            for label in npz_file:
+                img[label] = npz_file[label]
+
+        print("Data loaded")
 
         # find slices where any mask is defined
         slices_idxs = set()
@@ -156,10 +162,12 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
 
         scores = defaultdict(list)
         for idx in tqdm(slices_idxs):
+            #print('Running pred')
             pred = model.apply({"image": img["data"][:, :, idx],
                                 "resolution": np.abs(img["resolution"][:2]),
                                 "split_laterality": False})
             for label in pred:
+                #print('Evaluating', label)
                 mask_name = f"mask_{label}"
                 if mask_name in img:
                     gt = img[mask_name][:, :, idx]
