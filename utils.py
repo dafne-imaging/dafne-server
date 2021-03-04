@@ -156,9 +156,23 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
 
         # find slices where any mask is defined
         slices_idxs = set()
-        for dataset_name in img:
+        for dataset_name, dataset in img.items():
             if dataset_name.startswith('mask_'):
-                slices_idxs = slices_idxs.union(_get_nonzero_slices(img[dataset_name]))
+                n_slices = dataset.shape[2]
+                slices_idxs = slices_idxs.union(_get_nonzero_slices(dataset))
+
+        if len(slices_idxs) != n_slices:
+            print('Reducing stored dataset')
+            new_img = {}
+            for dataset_name, dataset in img.items():
+                if dataset_name.startswith('mask_') or dataset_name == 'data':
+                    new_img[dataset_name] = dataset[:,:,list(slices_idxs)]
+                else:
+                    new_img[dataset_name] = dataset
+            os.rename(file, f'{file}.orig')
+            np.savez_compressed(file, **new_img)
+            del new_img
+
 
         scores = defaultdict(list)
         for idx in tqdm(slices_idxs):
