@@ -23,22 +23,41 @@ import time
 
 from dl.DynamicDLModel import DynamicDLModel
 from utils import evaluate_model
+import argparse
 
-model_path = os.path.abspath(sys.argv[1])
-m = re.search(r'/models/([^/_]+)', model_path)
-if not m:
-    print('Invalid path to model - cannot determine the model type')
-    sys.exit(1)
+parser = argparse.ArgumentParser()
+parser.add_argument('model', metavar='model', type=str, help='Model file')
+parser.add_argument('--type', '-t', dest='model_type', metavar='type', type=str, required=False,
+                    help='Type of model (optional, otherwise inferred by the path)')
+parser.add_argument('--test-path', '-p', dest='test_path', metavar='path', type=str, required=False,
+                    help='Path to npz test files (optional)')
 
-model_type = m.group(1)
-print('Model type:', model_type)
+args = parser.parse_args()
+
+model_path = os.path.abspath(args.model)
+
+test_path = args.test_path
+
+if test_path is not None:
+    model_type_or_dir = test_path
+else:
+    model_type_or_dir = args.model_type
+
+    if model_type_or_dir is None:
+        m = re.search(r'/models/([^/_]+)', model_path)
+        if not m:
+            print('Invalid path to model - cannot determine the model type')
+            sys.exit(1)
+
+        model_type_or_dir = m.group(1)
+print('Model type or dir:', model_type_or_dir)
 
 print('Loading model...')
 model = DynamicDLModel.Load(open(model_path, 'rb'))
 
 print('Evaluating model...')
 t = time.time()
-dice = evaluate_model(model_type, model, save_log=False)
+dice = evaluate_model(model_type_or_dir, model, save_log=False)
 elapsed = time.time() - t
 print('Dice score:', dice)
 print('Elapsed time', elapsed)

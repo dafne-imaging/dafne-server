@@ -5,6 +5,7 @@ from collections import defaultdict
 import time
 from pathlib import Path
 import json
+from typing import Union
 
 import pydicom as dicom
 import numpy as np
@@ -127,44 +128,71 @@ def _get_nonzero_slices(mask):
     return slices
 
 
-def evaluate_model(model_type: str, model: DynamicDLModel, save_log=True, comment='') -> float:
+def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, save_log=True, comment='') -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
     per subject).
     """
-    labels = leg_labels.values() if model_type.startswith("Leg") else thigh_labels.values()
 
     t = time.time()
 
-    for file in Path(TEST_DATA_DIR).glob(f"{model_type}/*.npz"):
+    if os.path.isdir(model_type_or_dir):
+        test_files = Path(model_type_or_dir).glob("*.npz")
+    else:
+        test_files = Path(TEST_DATA_DIR).glob(f"{model_type_or_dir}/*.npz")
+
+    dice_scores = []
+    n_voxels = []
+    for file in test_files:
         print(f"Processing subject: {file.name}")
         img = np.load(file)
-        slices_idxs = _get_nonzero_slices(img[f"mask_{list(labels)[0]}"])
+
+        # find slices where any mask is defined
+        slices_idxs = set()
+        for dataset_name in img:
+            if dataset_name.startswith('mask_'):
+                slices_idxs = slices_idxs.union(_get_nonzero_slices(img[dataset_name]))
+
         scores = defaultdict(list)
         for idx in tqdm(slices_idxs):
             pred = model.apply({"image": img["data"][:, :, idx],
                                 "resolution": np.abs(img["resolution"][:2]),
                                 "split_laterality": False})
-            for label in labels:
-                gt = img[f"mask_{label}"][:, :, idx]
+            for label in pred:
+                mask_name = f"mask_{label}"
+                if mask_name in img:
+                    gt = img[mask_name][:, :, idx]
+                else: # if the validation set had split laterality
+                    gt_L = None
+                    if mask_name + '_L' in img:
+                        gt_L = img[mask_name + '_L'][:, :, idx]
+                    gt_R = None
+                    if mask_name + '_R' in img:
+                        gt_L = img[mask_name + '_R'][:, :, idx]
+                    gt = np.logical_or(gt_L, gt_R) #Note: logical_or(None, None) == None
+
+                if gt is None:
+                    print(f'Warning: {label} not found in validation')
+                    continue
+
                 nr_voxels = gt.sum()
                 dice = calc_dice_score(gt, pred[label])
+                dice_scores.append(dice)
+                n_voxels.append(nr_voxels)
                 scores[label].append([dice, nr_voxels])
 
-    scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
-    print(scores_per_label)
-    scores_flat = []
-    for key, val in scores.items():
-        for elem in val:
-            scores_flat.append(elem)
-    
-    scores_flat = np.array(scores_flat)
-    mean_score = np.average(scores_flat[:, 0], weights=scores_flat[:, 1])
+        scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
+        print('Unweighted scores per label:', scores_per_label)
+
+    try:
+        mean_score = np.average(np.array(dice_scores), weights=np.array(n_voxels))
+    except ZeroDivisionError:
+        mean_score = -1.0
     elapsed = time.time() - t
     if save_log:
-        log(f"evaluating model {model_type}/{model.timestamp_id}.model: Dice: {mean_score:.6f} (time: {elapsed:.2}) {comment})", p=True)
-        log_dice_to_csv(f"{model_type}/{model.timestamp_id}.model", mean_score)
+        log(f"evaluating model {model_type_or_dir}/{model.timestamp_id}.model: Dice: {mean_score:.6f} (time: {elapsed:.2}) {comment})", p=True)
+        log_dice_to_csv(f"{model_type_or_dir}/{model.timestamp_id}.model", mean_score)
     return mean_score
 
 
