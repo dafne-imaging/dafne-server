@@ -169,7 +169,7 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
                         gt_L = img[mask_name + '_L'][:, :, idx]
                     gt_R = None
                     if mask_name + '_R' in img:
-                        gt_L = img[mask_name + '_R'][:, :, idx]
+                        gt_R = img[mask_name + '_R'][:, :, idx]
                     gt = np.logical_or(gt_L, gt_R) #Note: logical_or(None, None) == None
 
                 if gt is None:
