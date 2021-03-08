@@ -11,6 +11,7 @@ import pydicom as dicom
 import numpy as np
 import nibabel as nib
 from tqdm import tqdm
+import tensorflow as tf
 
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
@@ -127,8 +128,7 @@ def _get_nonzero_slices(mask):
             slices.append(idx)
     return slices
 
-
-def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, save_log=True, comment='') -> float:
+def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, save_log=True, comment='', cleanup=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
@@ -203,7 +203,14 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
                 dice_scores.append(dice)
                 n_voxels.append(nr_voxels)
                 scores[label].append([dice, nr_voxels])
+            del pred
 
+        del img
+        if cleanup:
+            try:
+                tf.keras.backend.clear_session() # this should clear the memory leaks by tensorflow
+            except:
+                print("Error cleaning keras session")
         scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
         print('Unweighted scores per label:', scores_per_label)
 
@@ -213,7 +220,7 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
         mean_score = -1.0
     elapsed = time.time() - t
     if save_log:
-        log(f"evaluating model {model_type_or_dir}/{model.timestamp_id}.model: Dice: {mean_score:.6f} (time: {elapsed:.2}) {comment})", p=True)
+        log(f"evaluating model {model_type_or_dir}/{model.timestamp_id}.model: Dice: {mean_score:.6f} (time: {elapsed:.2f}) {comment})", p=True)
         log_dice_to_csv(f"{model_type_or_dir}/{model.timestamp_id}.model", mean_score)
     return mean_score
 
@@ -239,7 +246,7 @@ def merge_model(model_type, new_model_path):
         return
 
     # Validate dice of uploaded model
-    if evaluate_model(model_type, new_model, comment='(Uploaded model)') < config["dice_threshold"]:
+    if evaluate_model(model_type, new_model, comment='(Uploaded model)', cleanup=False) < config["dice_threshold"]:
         log("Score of new model is below threshold.", True)
         return
 
@@ -254,7 +261,7 @@ def merge_model(model_type, new_model_path):
     merged_model.reset_timestamp()
 
     # Validate dice of merged model
-    if evaluate_model(model_type, merged_model, comment='(Merged model)') < config["dice_threshold"]:
+    if evaluate_model(model_type, merged_model, comment='(Merged model)', cleanup=False) < config["dice_threshold"]:
         log("Score of the merged model is below threshold.")
         return
 
@@ -264,6 +271,12 @@ def merge_model(model_type, new_model_path):
     merged_model.dump(open(temp_model_path, 'wb')) # write to a tmp file to avoid serving an incompletely written model
     os.rename(temp_model_path, new_model_path)
     log(f"Saved merged model with timestamp: {merged_model.timestamp_id}", p=True)
+
+    # cleaning up
+    try:
+        tf.keras.backend.clear_session()  # this should clear the memory leaks by tensorflow
+    except:
+        print("Error cleaning keras session")
 
     print("Deleting old models...")
     delete_older_models(model_type, keep_latest=config["nr_models_to_keep"])

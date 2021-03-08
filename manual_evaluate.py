@@ -15,7 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+import gc
 import sys
 import os
 import re
@@ -52,12 +52,30 @@ else:
         model_type_or_dir = m.group(1)
 print('Model type or dir:', model_type_or_dir)
 
-print('Loading model...')
-model = DynamicDLModel.Load(open(model_path, 'rb'))
+def run_evaluation():
+    print('Loading model...')
+    model = DynamicDLModel.Load(open(model_path, 'rb'))
 
-print('Evaluating model...')
-t = time.time()
-dice = evaluate_model(model_type_or_dir, model, save_log=False)
-elapsed = time.time() - t
-print('Dice score:', dice)
-print('Elapsed time', elapsed)
+    print('Evaluating model...')
+    t = time.time()
+    dice = evaluate_model(model_type_or_dir, model, save_log=False)
+    elapsed = time.time() - t
+    print('Dice score:', dice)
+    print('Elapsed time', elapsed)
+
+run_evaluation()
+
+# @profile
+# def run():
+#     print("Run 1")
+#     run_evaluation()
+#     gc.collect()
+#     print("after gc")
+#     print("Run 2")
+#     run_evaluation()
+#     gc.collect()
+#     print("Run 3")
+#     run_evaluation()
+#     gc.collect()
+#
+# run()
