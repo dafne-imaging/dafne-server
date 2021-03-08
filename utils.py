@@ -1,3 +1,4 @@
+import gc
 import os
 import glob
 import datetime
@@ -277,6 +278,11 @@ def merge_model(model_type, new_model_path):
         tf.keras.backend.clear_session()  # this should clear the memory leaks by tensorflow
     except:
         print("Error cleaning keras session")
+
+    del latest_model
+    del merged_model
+    del new_model
+    gc.collect()
 
     print("Deleting old models...")
     delete_older_models(model_type, keep_latest=config["nr_models_to_keep"])

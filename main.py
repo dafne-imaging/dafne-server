@@ -1,3 +1,4 @@
+import gc
 import os, glob, time, io
 from threading import Thread
 
@@ -146,6 +147,13 @@ def upload_data():
     return {"message": "upload successful"}, 200
 
 
+def evaluate_model_thread(model_type, model_file):
+    model = DynamicDLModel.Load(open(model_file, 'rb'))
+    utils_evaluate_model(model_type, model, cleanup=True)
+    del model
+    gc.collect()
+
+
 @app.route('/evaluate_model', methods=["POST"])  
 def evaluate_model():
     meta = request.json
@@ -158,9 +166,8 @@ def evaluate_model():
     model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
     if not os.path.isfile(model):
         return {"message": "invalid model - not found"}, 500
-    model = DynamicDLModel.Load(open(model, 'rb'))
-    
-    eval_thread = Thread(target=utils_evaluate_model, args=(meta["model_type"], model), daemon=False)
+
+    eval_thread = Thread(target=evaluate_model_thread, args=(meta["model_type"], model), daemon=False)
     eval_thread.start()
 
     return {"message": "starting evaluation successful"}, 200
