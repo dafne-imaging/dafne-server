@@ -1,6 +1,7 @@
 import gc
 import os, glob, time, io
 from threading import Thread
+import subprocess
 
 import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory
@@ -57,6 +58,9 @@ def get_model():
     return send_file(model, mimetype='application/octet-stream'), 200
 
 
+def merge_model_thread(model_type, new_model_path):
+    subprocess.call(f"python standalone_merge.py {model_type} {new_model_path}", shell=True)
+
 @app.route('/upload_model', methods=['POST'])
 def upload_model():
     """
@@ -108,11 +112,10 @@ def upload_model():
     #model.dump(open(model_path, "wb"))
 
     print("Starting merge...")
-    # merged_model = merge_model(meta["model_type"], model_path)  # same thread
-
     # Thread needed. With multiprocessing.Process this will block in docker+nginx
     # (daemon=True/False works both)
-    merge_thread = Thread(target=merge_model, args=(meta["model_type"], model_path), daemon=False)
+    # merge_thread = Thread(target=merge_model, args=(meta["model_type"], model_path), daemon=False)
+    merge_thread = Thread(target=merge_model_thread, args=(meta["model_type"], model_path), daemon=False)
     merge_thread.start()
 
     merged_model = 1

@@ -129,6 +129,7 @@ def _get_nonzero_slices(mask):
             slices.append(idx)
     return slices
 
+
 def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, save_log=True, comment='', cleanup=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
