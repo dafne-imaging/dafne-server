@@ -3,7 +3,7 @@
 
 Updating code on server:
 ``` 
-cd /mnt/data/code/dafne-server
+cd ~/dev/dafne-server
 git pull
 cd dl
 git pull
