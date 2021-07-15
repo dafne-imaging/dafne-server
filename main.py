@@ -1,5 +1,7 @@
 import gc
+import json
 import os, glob, time, io
+import traceback
 from threading import Thread
 import subprocess
 
@@ -37,10 +39,26 @@ def info_model():
     if not valid_credentials(meta["api_key"]):
         return {"message": "invalid access code"}, 401
 
-    latest_timestamp = get_models(meta["model_type"])[-1]
-    latest_model_path = f"{MODELS_DIR}/{meta['model_type']}/{latest_timestamp}.model"
-    model_hash = calculate_file_hash(latest_model_path, True)
-    return {"latest_timestamp": latest_timestamp, "hash": model_hash}, 200
+    timestamps = get_models(meta["model_type"])
+
+    hashes = {}
+    for stamp in timestamps:
+        model_path = f"{MODELS_DIR}/{meta['model_type']}/{stamp}.model"
+        model_hash = calculate_file_hash(model_path, True)
+        hashes[stamp] = model_hash
+
+    #print(timestamps)
+    #print(hashes)
+
+    out_dict = {"latest_timestamp": timestamps[-1], "hash": hashes[timestamps[-1]], "hashes": hashes, "timestamps": timestamps}
+    json_file_name = 'model.json'
+    try:
+        # add the content of the json file to the dictionary
+        out_dict.update(json.load(open(f"{MODELS_DIR}/{meta['model_type']}/{json_file_name}", 'rb')))
+    except:
+        traceback.print_exc()
+
+    return out_dict, 200
 
 
 @app.route('/get_model', methods=["POST"])  
