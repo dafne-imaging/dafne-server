@@ -193,6 +193,23 @@ def evaluate_model():
 
     return {"message": "starting evaluation successful"}, 200
 
+@app.route('/log', methods=["POST"])
+def log_message():
+    """
+    Log a message from a user
+
+    available data fields:
+        api_key
+        message
+    """
+    meta = request.json
+    if not valid_credentials(meta["api_key"]):
+        return {"message": "invalid access code"}, 401
+
+    username = get_username(meta["api_key"])
+    message = meta["message"]
+    log(f"Log message from {username} - {message}")
+
 
 if __name__ == '__main__':
     # Only for debugging while developing
