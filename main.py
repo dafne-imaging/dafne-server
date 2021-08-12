@@ -51,12 +51,10 @@ def info_model():
     #print(hashes)
 
     out_dict = {"latest_timestamp": timestamps[-1], "hash": hashes[timestamps[-1]], "hashes": hashes, "timestamps": timestamps}
-    json_file_name = 'model.json'
-    try:
+    json_file_path = f"{MODELS_DIR}/{meta['model_type']}/model.json"
+    if os.path.exists(json_file_path):
         # add the content of the json file to the dictionary
-        out_dict.update(json.load(open(f"{MODELS_DIR}/{meta['model_type']}/{json_file_name}", 'rb')))
-    except:
-        traceback.print_exc()
+        out_dict.update(json.load(open(json_file_path, "rb")))
 
     return out_dict, 200
 

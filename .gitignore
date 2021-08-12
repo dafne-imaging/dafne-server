@@ -17,3 +17,4 @@ models_old*
 *.sha256
 *.csv
 db/test_data
+db/models
