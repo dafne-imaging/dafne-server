@@ -206,7 +206,8 @@ def log_message():
 
     username = get_username(meta["api_key"])
     message = meta["message"]
-    log(f"Log message from {username} - {message}")
+    log(f"Log message from {username} - {message}", True)
+    return {'message': 'ok'}, 200
 
 
 if __name__ == '__main__':
