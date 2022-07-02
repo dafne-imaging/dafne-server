@@ -17,13 +17,10 @@ import tensorflow as tf
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
-from dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
+from dafne_dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
 # from dl.labels.thigh import long_labels_split as thigh_labels
 # from dl.labels.leg import long_labels_split as leg_labels
-from dl.labels.thigh import long_labels as thigh_labels
-from dl.labels.leg import long_labels as leg_labels
-from dl.labels.thigh import short_labels as thigh_labels_short
-from dl.misc import calc_dice_score
+from dafne_dl.misc import calc_dice_score
 
 
 MODELS_DIR = "db/models"

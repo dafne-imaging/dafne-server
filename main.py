@@ -12,12 +12,12 @@ from markupsafe import escape
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
 
-from dl.LocalModelProvider import LocalModelProvider
-from dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.LocalModelProvider import LocalModelProvider
+from dafne_dl.DynamicDLModel import DynamicDLModel
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
 from utils import evaluate_model as utils_evaluate_model
 from utils import MODELS_DIR
-from dl.misc import calculate_file_hash
+from dafne_dl.misc import calculate_file_hash
 
 app = Flask(__name__)
 

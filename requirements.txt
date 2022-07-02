@@ -10,3 +10,4 @@ dill
 requests
 SimpleITK
 scikit-image
+dafne-dl
