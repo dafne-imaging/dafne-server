@@ -21,7 +21,7 @@ import os
 import re
 import time
 
-from dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.DynamicDLModel import DynamicDLModel
 from utils import evaluate_model
 import argparse
 

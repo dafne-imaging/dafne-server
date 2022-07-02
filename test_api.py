@@ -2,7 +2,7 @@ import os
 import requests
 import dill
 
-from dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.DynamicDLModel import DynamicDLModel
 
 """
 Place model weights for example here: `db/models/Thigh/1603281013.model`.  

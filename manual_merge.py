@@ -19,7 +19,7 @@
 from argparse import ArgumentParser
 import json
 import os
-from dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.DynamicDLModel import DynamicDLModel
 
 config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'server_config.json')
 
