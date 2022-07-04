@@ -153,7 +153,7 @@ def upload_data():
     """
     meta = request.form.to_dict()
     if not valid_credentials(meta["api_key"]):
-        log(f"Upload request of {meta['model_type']} rejected because api key {meta['api_key']} is invalid")
+        log(f"Upload data request rejected because api key {meta['api_key']} is invalid")
         return {"message": "invalid access code"}, 401
 
     username = get_username(meta["api_key"])
