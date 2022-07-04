@@ -162,9 +162,6 @@ def upload_model(response: Response, api_key: str = Form(...),
 
 @app.post('/upload_data')
 def upload_data(response: Response, api_key: str = Form(...),
-                 model_type: str = Form(...),
-                 original_hash: Union[str, None] = Form(None),
-                 dice: Union[float,None] = Form(None),
                  data_binary: UploadFile = UploadFile(...)):
     """
     Upload user data and save them to db/uploaded_data/<username>/<timestamp>.npz
@@ -173,7 +170,7 @@ def upload_data(response: Response, api_key: str = Form(...),
         api_key
     """
     if not valid_credentials(api_key):
-        log(f"Upload request of {model_type} rejected because api key {api_key} is invalid")
+        log(f"Data upload request rejected because api key {api_key} is invalid")
         response.status_code = 401
         return {"message": "invalid access code"}
 
