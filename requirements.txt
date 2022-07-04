@@ -1,13 +1,12 @@
 numpy
-tensorflow
-keras
-Flask
 nibabel
 tqdm
 pydicom
 MarkupSafe
 dill
-requests
-SimpleITK
 scikit-image
 dafne-dl
+fastapi
+uvicorn
+requests
+python-multipart

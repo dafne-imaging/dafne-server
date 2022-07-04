@@ -1,8 +1,7 @@
-# Use same python version as was used to generate the tf models
-FROM tiangolo/uwsgi-nginx-flask:python3.8
+FROM tiangolo/uvicorn-gunicorn-fastapi:python3.9
 
-COPY requirements.txt /requirements.txt
+COPY ./requirements.txt /app/requirements.txt
 
-RUN pip install -r /requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 
 COPY . /app
