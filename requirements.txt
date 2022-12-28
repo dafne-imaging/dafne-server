@@ -6,6 +6,8 @@ MarkupSafe
 dill
 scikit-image
 dafne-dl
+tensorflow
+SimpleITK-SimpleElastix
 fastapi
 uvicorn
 requests
