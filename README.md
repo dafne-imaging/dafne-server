@@ -34,7 +34,7 @@ See [test_api.py](test_api.py)
 ### Build and use docker container
 Build:
 ```
-docker build -t dafne-server:master .
+docker build --no-cache -t dafne-server:master .
 ```
 
 Run:
