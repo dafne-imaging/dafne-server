@@ -34,12 +34,12 @@ See [test_api.py](test_api.py)
 ### Build and use docker container
 Build:
 ```
-docker build -t dafne-server:master .
+docker build --no-cache -t dafne-server:master .
 ```
 
 Run:
 ``` 
-docker run -p 5000:80 -v /home/jakob/dev/dafne-server/db:/app/db dafne-server:master
+docker run -p 5000:80 -v /mnt/data/dafne-server-db:/app/db dafne-server:master
 ``` 
 
 

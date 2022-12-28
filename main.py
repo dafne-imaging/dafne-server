@@ -1,13 +1,15 @@
 import gc
 import json
-import os, glob, time, io
-import traceback
+import os, time
+import shutil
 from threading import Thread
 import subprocess
+from typing import Union
 
-import numpy as np
-from flask import Flask, request, jsonify, send_file, send_from_directory
-from markupsafe import escape
+import uvicorn
+from fastapi import FastAPI, Form, Response, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
@@ -19,31 +21,50 @@ from utils import evaluate_model as utils_evaluate_model
 from utils import MODELS_DIR
 from dafne_dl.misc import calculate_file_hash
 
-app = Flask(__name__)
+def _save_file(file_obj, path):
+    try:
+        with open(path, 'wb') as f:
+            shutil.copyfileobj(file_obj, f)
+    except IOError:
+        print("IOError")
+        os.remove(path)
+    finally:
+        file_obj.close()
+
+
+app = FastAPI()
 
 # On the server /mnt/data/dafne-server-db will be mounted to db when starting the docker container
 DB_DIR = "db"
 
-@app.route('/get_available_models', methods=["POST"])
-def get_available_models():
-    meta = request.json
-    if not valid_credentials(meta["api_key"]):
-        return {"message": "invalid access code"}, 401
+# when using request.post(url, json=dict)
+class APIAndModelRequestJSON(BaseModel):
+    api_key: str
+    model_type: str = ''
+    timestamp: str = ''
+    message: str = ''
 
-    return {"models": get_model_types()}, 200
+@app.post('/get_available_models')
+def get_available_models(response: Response, api_key_json: APIAndModelRequestJSON):
+    api_key = api_key_json.api_key
+    if not valid_credentials(api_key):
+        response.status_code = 401
+        return {"message": "invalid access code"}
+
+    return {"models": get_model_types()}
 
 
-@app.route('/info_model', methods=["POST"])
-def info_model():
-    meta = request.json
-    if not valid_credentials(meta["api_key"]):
-        return {"message": "invalid access code"}, 401
+@app.post('/info_model')
+def info_model(response: Response, request_json: APIAndModelRequestJSON):
+    if not valid_credentials(request_json.api_key):
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
-    timestamps = get_models(meta["model_type"])
+    timestamps = get_models(request_json.model_type)
 
     hashes = {}
     for stamp in timestamps:
-        model_path = f"{MODELS_DIR}/{meta['model_type']}/{stamp}.model"
+        model_path = f"{MODELS_DIR}/{request_json.model_type}/{stamp}.model"
         model_hash = calculate_file_hash(model_path, True)
         hashes[stamp] = model_hash
 
@@ -51,50 +72,56 @@ def info_model():
     #print(hashes)
 
     out_dict = {"latest_timestamp": timestamps[-1], "hash": hashes[timestamps[-1]], "hashes": hashes, "timestamps": timestamps}
-    json_file_path = f"{MODELS_DIR}/{meta['model_type']}/model.json"
+    json_file_path = f"{MODELS_DIR}/{request_json.model_type}/model.json"
     if os.path.exists(json_file_path):
         # add the content of the json file to the dictionary
         out_dict.update(json.load(open(json_file_path, "rb")))
 
-    return out_dict, 200
+    return out_dict
 
 
-@app.route('/get_model', methods=["POST"])  
-def get_model():
-    meta = request.json
-    if not valid_credentials(meta["api_key"]):
-        return {"message": "invalid access code"}, 401
+@app.post('/get_model')
+def get_model(response: Response, request_json: APIAndModelRequestJSON):
+    if not valid_credentials(request_json.api_key):
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
     # todo: read and write access only to models dir
-    model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
+    model = f"{MODELS_DIR}/{request_json.model_type}/{request_json.timestamp}.model"
     if not os.path.isfile(model):
-        return {"message": "invalid model - not found"}, 500
-    username = get_username(meta["api_key"])
-    log(f"get_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
-    return send_file(model, mimetype='application/octet-stream'), 200
+        response.status_code = 500
+        return {"message": "invalid model - not found"}
+    username = get_username(request_json.api_key)
+    log(f"get_model accessed by {username} - {request_json.model_type} - {request_json.timestamp}")
+    return FileResponse(model, headers={'mimetype': 'application/octet-stream'})
 
 
 def merge_model_thread(model_type, new_model_path):
     subprocess.call(f"python standalone_merge.py {model_type} {new_model_path}", shell=True)
 
-@app.route('/upload_model', methods=['POST'])
-def upload_model():
+@app.post('/upload_model')
+def upload_model(response: Response, api_key: str = Form(...),
+                 model_type: str = Form(...),
+                 original_hash: Union[str, None] = Form(None),
+                 dice: Union[float,None] = Form(None),
+                 model_binary: UploadFile = UploadFile(...)):
     """
     available data fields:
         api_key
         model_type
         dice (optional)
     """
-    meta = request.form.to_dict()
-    if not valid_credentials(meta["api_key"]):
-        log(f"Upload request of {meta['model_type']} rejected because api key {meta['api_key']} is invalid")
-        return {"message": "invalid access code"}, 401
+    if not valid_credentials(api_key):
+        log(f"Upload request of {model_type} rejected because api key {api_key} is invalid")
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
-    username = get_username(meta["api_key"])
+    username = get_username(api_key)
 
-    if meta["model_type"] not in get_model_types():
-        log(f"Upload request of {meta['model_type']} from {username} rejected because model type is invalid")
-        return {"message": "invalid model type"}, 500
+    if model_type not in get_model_types():
+        log(f"Upload request of {model_type} from {username} rejected because model type is invalid")
+        response.status_code = 500
+        return {"message": "invalid model type"}
 
     #model_binary = request.files['model_binary'].read()  # read() is needed to get bytes from FileStorage object
     #model_delta = DynamicDLModel.Loads(model_binary)
@@ -107,17 +134,12 @@ def upload_model():
     #model = model_delta
 
     # directly save received model to disk
-    model_path = f"{MODELS_DIR}/{meta['model_type']}/uploads/{str(int(time.time()))}_{username}.model"
-    request.files['model_binary'].save(model_path)
+    model_path = f"{MODELS_DIR}/{model_type}/uploads/{str(int(time.time()))}_{username}.model"
+    _save_file(model_binary.file, model_path)
 
-    dice = meta["dice"] if "dice" in meta else -1.0
+    log(f"upload_model accessed by {username} - {model_type} - {model_path} - client dice {dice}")
 
-    log(f"upload_model accessed by {username} - {meta['model_type']} - {model_path} - client dice {dice}")
 
-    try:
-        original_hash = meta["hash"]
-    except:
-        original_hash = None
 
     local_hash = calculate_file_hash(model_path)
 
@@ -131,39 +153,35 @@ def upload_model():
     # Thread needed. With multiprocessing.Process this will block in docker+nginx
     # (daemon=True/False works both)
     # merge_thread = Thread(target=merge_model, args=(meta["model_type"], model_path), daemon=False)
-    merge_thread = Thread(target=merge_model_thread, args=(meta["model_type"], model_path), daemon=False)
+    merge_thread = Thread(target=merge_model_thread, args=(model_type, model_path), daemon=False)
     merge_thread.start()
 
-    merged_model = 1
-
-    if merged_model is not None:
-        return {"message": "upload successful"}, 200
-    else:
-        print("Info: merging of models failed, because validation Dice too low.")
-        return {"message": "merging of models failed, because validation Dice too low."}, 500
+    return {"message": "upload successful"}
 
 
-@app.route('/upload_data', methods=['POST'])
-def upload_data():
+
+@app.post('/upload_data')
+def upload_data(response: Response, api_key: str = Form(...),
+                 data_binary: UploadFile = UploadFile(...)):
     """
     Upload user data and save them to db/uploaded_data/<username>/<timestamp>.npz
 
     available data fields:
         api_key
     """
-    meta = request.form.to_dict()
-    if not valid_credentials(meta["api_key"]):
-        log(f"Upload data request rejected because api key {meta['api_key']} is invalid")
-        return {"message": "invalid access code"}, 401
+    if not valid_credentials(api_key):
+        log(f"Data upload request rejected because api key {api_key} is invalid")
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
-    username = get_username(meta["api_key"])
+    username = get_username(api_key)
 
     data_dir = f"{DB_DIR}/uploaded_data/{username}"
     if not os.path.exists(data_dir): os.makedirs(data_dir)
-    request.files['data_binary'].save(f"{data_dir}/{int(time.time())}.npz")
+    _save_file(data_binary.file, f"{data_dir}/{str(int(time.time()))}.npz")
 
     log(f"upload_data accessed by {username} - upload successful")
-    return {"message": "upload successful"}, 200
+    return {"message": "upload successful"}
 
 
 def evaluate_model_thread(model_type, model_file):
@@ -173,26 +191,27 @@ def evaluate_model_thread(model_type, model_file):
     gc.collect()
 
 
-@app.route('/evaluate_model', methods=["POST"])  
-def evaluate_model():
-    meta = request.json
-    if not valid_credentials(meta["api_key"]):
-        return {"message": "invalid access code"}, 401
+@app.post('/evaluate_model')
+def evaluate_model(response: Response, request_json: APIAndModelRequestJSON):
+    if not valid_credentials(request_json.api_key):
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
-    username = get_username(meta["api_key"])
-    log(f"evaluate_model accessed by {username} - {meta['model_type']} - {meta['timestamp']}")
+    username = get_username(api_key)
+    log(f"evaluate_model accessed by {username} - {request_json.model_type} - {request_json.timestamp}")
 
-    model = f"{MODELS_DIR}/{meta['model_type']}/{meta['timestamp']}.model"
+    model = f"{MODELS_DIR}/{request_json.model_type}/{request_json.timestamp}.model"
     if not os.path.isfile(model):
-        return {"message": "invalid model - not found"}, 500
+        response.status_code = 500
+        return {"message": "invalid model - not found"}
 
-    eval_thread = Thread(target=evaluate_model_thread, args=(meta["model_type"], model), daemon=False)
+    eval_thread = Thread(target=evaluate_model_thread, args=(request_json.model_type, model), daemon=False)
     eval_thread.start()
 
-    return {"message": "starting evaluation successful"}, 200
+    return {"message": "starting evaluation successful"}
 
-@app.route('/log', methods=["POST"])
-def log_message():
+@app.post('/log')
+def log_message(response: Response, request_json: APIAndModelRequestJSON):
     """
     Log a message from a user
 
@@ -200,16 +219,17 @@ def log_message():
         api_key
         message
     """
-    meta = request.json
-    if not valid_credentials(meta["api_key"]):
-        return {"message": "invalid access code"}, 401
+    if not valid_credentials(request_json.api_key):
+        response.status_code = 401
+        return {"message": "invalid access code"}
 
-    username = get_username(meta["api_key"])
-    message = meta["message"]
+    username = get_username(request_json.api_key)
+    message = request_json.message
     log(f"Log message from {username} - {message}", True)
-    return {'message': 'ok'}, 200
+    return {'message': 'ok'}
 
 
 if __name__ == '__main__':
     # Only for debugging while developing
-    app.run(host='0.0.0.0', debug=True)
+    uvicorn.run('main:app', host='0.0.0.0', port=5000)
+    # command line: uvicorn main:app --port 5000
