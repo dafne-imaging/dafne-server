@@ -11,9 +11,12 @@ from typing import Union
 import pydicom as dicom
 import numpy as np
 import nibabel as nib
+from build.lib.dafne_dl.model_loaders import generic_load_model
 from tqdm import tqdm
 import tensorflow as tf
 import torch
+
+from dl.interfaces import DeepLearningClass
 
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
@@ -131,8 +134,11 @@ def _get_nonzero_slices(mask):
             slices.append(idx)
     return slices
 
+def is_model_3D(model):
+    dimensionality = str(model.get_metadata().get('dimensionality', '2'))
+    return dimensionality == '3'
 
-def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel | DynamicTorchModel | DynamicEnsembleModel, save_log=True, comment='', cleanup=True) -> float:
+def evaluate_model(model_type_or_dir: Union[str, Path], model: DeepLearningClass, save_log=True, comment='', cleanup=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
@@ -159,7 +165,7 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel | 
 
         print("Data loaded")
 
-        if isinstance(model, DynamicEnsembleModel):
+        if is_model_3D(model):
 
             scores = defaultdict(list)
 
@@ -180,7 +186,7 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel | 
                     continue
                 
                 nr_voxels=1
-                dice = calc_dice_score(gt, pred[label])
+                dice = calc_dice_score(gt > 0, pred[label] > 0)
                 dice_scores.append(dice)
                 n_voxels.append(nr_voxels)
                 scores[label].append([dice, nr_voxels])
@@ -242,19 +248,16 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel | 
                 del pred
 
             del img
-        if isinstance(model, DynamicEnsembleModel) | isinstance(model, DynamicTorchModel):
-            if cleanup:
+
+        if cleanup:
+            try:
+                tf.keras.backend.clear_session()  # this should clear the memory leaks by tensorflow
+            except:
                 try:
-                    torch.cuda.empty_cache() # clear torch memory
+                    torch.cuda.empty_cache()  # clear torch memory
                 except Exception as e:
-                    print(f"Error cleaning PyTorch cache: {e}")
-        
-        if isinstance(model, DynamicDLModel):
-            if cleanup:
-                try:
-                    tf.keras.backend.clear_session() # this should clear the memory leaks by tensorflow
-                except:
-                    print("Error cleaning keras session")
+                    print(f"Error cleaning: {e}")
+
         # print(f"scores.items() {scores.items()}")
         scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
         print('Unweighted scores per label:', scores_per_label)
@@ -284,19 +287,12 @@ def merge_model(model_type, model_class, new_model_path):
     # print(latest_timestamp)
     # latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
     # new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
-
-    MODEL_CLASSES = {
-        "DynamicDLModel": DynamicDLModel,
-        "DynamicTorchModel": DynamicTorchModel,
-        "DynamicEnsembleModel": DynamicEnsembleModel,
-    }
-    model_class = MODEL_CLASSES.get(model_class, DynamicDLModel)
     # print(f'model_class {model_class}')
 
     # print(f"latest_model (l'originale)")    
-    latest_model = model_class.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
+    latest_model = generic_load_model(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model")
     # print(f"new_model (IL))")   
-    new_model = model_class.Load(open(new_model_path, 'rb'))
+    new_model = generic_load_model(new_model_path)
 
     # Check that model_ids are identical
     if latest_model.model_id != new_model.model_id:
