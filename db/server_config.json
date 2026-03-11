@@ -1,5 +1,5 @@
 {
     "nr_models_to_keep": 5,
     "dice_threshold": -0.001,
-    "original_model_weight": 0.1
+    "original_model_weight": 0.5
 }

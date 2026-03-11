@@ -22,6 +22,8 @@ import re
 import time
 
 from dafne_dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.DynamicTorchModel import DynamicTorchModel
+from dafne_dl.DynamicEnsembleModel import DynamicEnsembleModel
 from utils import evaluate_model
 import argparse
 
@@ -31,12 +33,24 @@ parser.add_argument('--type', '-t', dest='model_type', metavar='type', type=str,
                     help='Type of model (optional, otherwise inferred by the path)')
 parser.add_argument('--test-path', '-p', dest='test_path', metavar='path', type=str, required=False,
                     help='Path to npz test files (optional)')
+parser.add_argument('--model_class', '-c', type=str, help='model class (i.e. DynamicDLModel)')
 
 args = parser.parse_args()
 
 model_path = os.path.abspath(args.model)
 
 test_path = args.test_path
+
+model_class_name = args.model_class
+
+MODEL_CLASSES = {
+    "DynamicDLModel": DynamicDLModel,
+    "DynamicTorchModel": DynamicTorchModel,
+    "DynamicEnsembleModel": DynamicEnsembleModel,
+}
+
+model_class = MODEL_CLASSES.get(model_class_name, DynamicDLModel)
+
 
 if test_path is not None:
     model_type_or_dir = test_path
@@ -54,7 +68,9 @@ print('Model type or dir:', model_type_or_dir)
 
 def run_evaluation():
     print('Loading model...')
-    model = DynamicDLModel.Load(open(model_path, 'rb'))
+    # model = DynamicEnsembleModel.Load(open(model_path, 'rb'))
+    # model = DynamicDLModel.Load(open(model_path, 'rb'))
+    model = model_class.Load(open(model_path, 'rb'))
 
     print('Evaluating model...')
     t = time.time()

@@ -16,6 +16,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1' # set to 2 to hide all warnings
 
 from dafne_dl.LocalModelProvider import LocalModelProvider
 from dafne_dl.DynamicDLModel import DynamicDLModel
+from dafne_dl.DynamicTorchModel import DynamicTorchModel
+from dafne_dl.DynamicEnsembleModel import DynamicEnsembleModel
 from utils import valid_credentials, get_model_types, get_models, get_username, merge_model, log
 from utils import evaluate_model as utils_evaluate_model
 from utils import MODELS_DIR
@@ -31,6 +33,11 @@ def _save_file(file_obj, path):
     finally:
         file_obj.close()
 
+MODEL_CLASSES = {
+    "DynamicDLModel": DynamicDLModel,
+    "DynamicTorchModel": DynamicTorchModel,
+    "DynamicEnsembleModel": DynamicEnsembleModel,
+}
 
 app = FastAPI()
 
@@ -96,8 +103,8 @@ def get_model(response: Response, request_json: APIAndModelRequestJSON):
     return FileResponse(model, headers={'mimetype': 'application/octet-stream'})
 
 
-def merge_model_thread(model_type, new_model_path):
-    subprocess.call(f"python standalone_merge.py {model_type} {new_model_path}", shell=True)
+def merge_model_thread(model_type, model_class, new_model_path):
+    subprocess.call(f"python standalone_merge.py {model_type} {model_class} {new_model_path}", shell=True)
 
 @app.post('/upload_model')
 def upload_model(response: Response, api_key: str = Form(...),
@@ -153,7 +160,19 @@ def upload_model(response: Response, api_key: str = Form(...),
     # Thread needed. With multiprocessing.Process this will block in docker+nginx
     # (daemon=True/False works both)
     # merge_thread = Thread(target=merge_model, args=(meta["model_type"], model_path), daemon=False)
-    merge_thread = Thread(target=merge_model_thread, args=(model_type, model_path), daemon=False)
+    
+    json_file_path = f"{MODELS_DIR}/{model_type}/model.json"
+
+    if os.path.exists(json_file_path):
+        with open(json_file_path, "r") as f:
+            model_info = json.load(f)
+            model_class_name = model_info.get("model_type", "DynamicDLModel")
+    else:
+        model_class_name = "DynamicDLModel"
+    
+    model_class = MODEL_CLASSES.get(model_class_name, DynamicDLModel)
+
+    merge_thread = Thread(target=merge_model_thread, args=(model_type, model_class, model_path), daemon=False)
     merge_thread.start()
 
     return {"message": "upload successful"}
@@ -185,8 +204,23 @@ def upload_data(response: Response, api_key: str = Form(...),
 
 
 def evaluate_model_thread(model_type, model_file):
-    model = DynamicDLModel.Load(open(model_file, 'rb'))
+    # model = DynamicDLModel.Load(open(model_file, 'rb'))
+    # utils_evaluate_model(model_type, model, cleanup=True)
+    # del model
+    # gc.collect()
+    json_file_path = f"{MODELS_DIR}/{model_type}/model.json"
+
+    if os.path.exists(json_file_path):
+        with open(json_file_path, "r") as f:
+            model_info = json.load(f)
+            model_class_name = model_info.get("model_type", "DynamicDLModel")
+    else:
+        model_class_name = "DynamicDLModel"
+    
+    model_class = MODEL_CLASSES.get(model_class_name, DynamicDLModel)
+    model = model_class.Load(open(model_file, "rb"))
     utils_evaluate_model(model_type, model, cleanup=True)
+
     del model
     gc.collect()
 
@@ -197,10 +231,12 @@ def evaluate_model(response: Response, request_json: APIAndModelRequestJSON):
         response.status_code = 401
         return {"message": "invalid access code"}
 
-    username = get_username(api_key)
+    # username = get_username(api_key)
+    username = get_username(request_json.api_key)
     log(f"evaluate_model accessed by {username} - {request_json.model_type} - {request_json.timestamp}")
-
+    
     model = f"{MODELS_DIR}/{request_json.model_type}/{request_json.timestamp}.model"
+
     if not os.path.isfile(model):
         response.status_code = 500
         return {"message": "invalid model - not found"}

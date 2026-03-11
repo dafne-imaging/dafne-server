@@ -11,20 +11,28 @@ from typing import Union
 import pydicom as dicom
 import numpy as np
 import nibabel as nib
+from build.lib.dafne_dl.model_loaders import generic_load_model
 from tqdm import tqdm
 import tensorflow as tf
+import torch
+
+from dl.interfaces import DeepLearningClass
 
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings
 
-from dafne_dl.DynamicDLModel import DynamicDLModel, IncompatibleModelError
+from dafne_dl.DynamicDLModel import DynamicDLModel #, IncompatibleModelError
+from dafne_dl.DynamicTorchModel import DynamicTorchModel
+from dafne_dl.DynamicEnsembleModel import DynamicEnsembleModel
 # from dl.labels.thigh import long_labels_split as thigh_labels
 # from dl.labels.leg import long_labels_split as leg_labels
-from dafne_dl.misc import calc_dice_score
+from dafne_dl.misc import calc_dice_score, calc_dice_score_3D
 
 
 MODELS_DIR = "db/models"
 TEST_DATA_DIR = "db/test_data"
+
+config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'server_config.json')
 
 # def load_dicom_file(fname):
 #     ds = dicom.read_file(fname)
@@ -37,17 +45,17 @@ TEST_DATA_DIR = "db/test_data"
 #     ds.PixelData = ""
 #     return pixelData, ds
 
-def keras_weighted_average(lhs: DynamicDLModel, rhs: DynamicDLModel, lhs_weight = 0.5):
-    if lhs.model_id != rhs.model_id: raise IncompatibleModelError
-    lhs_weights = lhs.get_weights()
-    rhs_weights = rhs.get_weights()
-    newWeights = []
-    for depth in range(len(lhs_weights)):
-        average = lhs_weights[depth]*lhs_weight + rhs_weights[depth]*(1-lhs_weight)
-        newWeights.append(average)
-    outputObj = lhs.get_empty_copy()
-    outputObj.set_weights(newWeights)
-    return outputObj
+# def keras_weighted_average(lhs: DynamicDLModel, rhs: DynamicDLModel, lhs_weight = 0.5):
+#     if lhs.model_id != rhs.model_id: raise IncompatibleModelError
+#     lhs_weights = lhs.get_weights()
+#     rhs_weights = rhs.get_weights()
+#     newWeights = []
+#     for depth in range(len(lhs_weights)):
+#         average = lhs_weights[depth]*lhs_weight + rhs_weights[depth]*(1-lhs_weight)
+#         newWeights.append(average)
+#     outputObj = lhs.get_empty_copy()
+#     outputObj.set_weights(newWeights)
+#     return outputObj
 
 def load_dicom_file(fname):
     print(fname)
@@ -126,8 +134,11 @@ def _get_nonzero_slices(mask):
             slices.append(idx)
     return slices
 
+def is_model_3D(model):
+    dimensionality = str(model.get_metadata().get('dimensionality', '2'))
+    return dimensionality == '3'
 
-def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, save_log=True, comment='', cleanup=True) -> float:
+def evaluate_model(model_type_or_dir: Union[str, Path], model: DeepLearningClass, save_log=True, comment='', cleanup=True) -> float:
     """
     This will evaluate model on all subjects in TEST_DATA_DIR/model_type.
     Per subject all slices which have ground truth annotations will be evaluated (only a subset of all slices
@@ -149,67 +160,105 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
         img = {}
         with np.load(file) as npz_file:
             for label in npz_file:
+                # print("label", label)
                 img[label] = npz_file[label]
 
         print("Data loaded")
 
-        # find slices where any mask is defined
-        slices_idxs = set()
-        for dataset_name, dataset in img.items():
-            if dataset_name.startswith('mask_'):
-                n_slices = dataset.shape[2]
-                slices_idxs = slices_idxs.union(_get_nonzero_slices(dataset))
+        if is_model_3D(model):
 
-        if len(slices_idxs) != n_slices:
-            print('Reducing stored dataset')
-            new_img = {}
-            for dataset_name, dataset in img.items():
-                if dataset_name.startswith('mask_') or dataset_name == 'data':
-                    new_img[dataset_name] = dataset[:,:,list(slices_idxs)]
-                else:
-                    new_img[dataset_name] = dataset
-            os.rename(file, f'{file}.orig')
-            np.savez_compressed(file, **new_img)
-            del new_img
+            scores = defaultdict(list)
 
-
-        scores = defaultdict(list)
-        for idx in tqdm(slices_idxs):
-            #print('Running pred')
-            pred = model.apply({"image": img["data"][:, :, idx],
-                                "resolution": np.abs(img["resolution"][:2]),
-                                "split_laterality": False})
+            pred = model.apply({"image": img["data"].astype(np.float32), "affine": img["affine"],
+                                    "resolution": img["resolution"].tolist(),
+                                    "split_laterality": False})
+            # print(f"pred {pred}")
             for label in pred:
                 #print('Evaluating', label)
+                # print(f"label {label}")
                 mask_name = f"mask_{label}"
                 if mask_name in img:
-                    gt = img[mask_name][:, :, idx]
-                else: # if the validation set had split laterality
-                    gt_L = None
-                    if mask_name + '_L' in img:
-                        gt_L = img[mask_name + '_L'][:, :, idx]
-                    gt_R = None
-                    if mask_name + '_R' in img:
-                        gt_R = img[mask_name + '_R'][:, :, idx]
-                    gt = np.logical_or(gt_L, gt_R) #Note: logical_or(None, None) == None
-
+                    gt = img[mask_name]
+                    # print(f"gt {gt}")
+            
                 if gt is None:
                     print(f'Warning: {label} not found in validation')
                     continue
-
-                nr_voxels = gt.sum()
-                dice = calc_dice_score(gt, pred[label])
+                
+                nr_voxels=1
+                dice = calc_dice_score(gt > 0, pred[label] > 0)
                 dice_scores.append(dice)
                 n_voxels.append(nr_voxels)
                 scores[label].append([dice, nr_voxels])
             del pred
+            del img
+            # print(f"scores {scores}")
 
-        del img
+        else:
+
+            # find slices where any mask is defined
+            slices_idxs = set()
+            for dataset_name, dataset in img.items():
+                if dataset_name.startswith('mask_'):
+                    n_slices = dataset.shape[2]
+                    slices_idxs = slices_idxs.union(_get_nonzero_slices(dataset))
+
+            if len(slices_idxs) != n_slices:
+                print('Reducing stored dataset')
+                new_img = {}
+                for dataset_name, dataset in img.items():
+                    if dataset_name.startswith('mask_') or dataset_name == 'data':
+                        new_img[dataset_name] = dataset[:,:,list(slices_idxs)]
+                    else:
+                        new_img[dataset_name] = dataset
+                os.rename(file, f'{file}.orig')
+                np.savez_compressed(file, **new_img)
+                del new_img
+
+
+            scores = defaultdict(list)
+            for idx in tqdm(slices_idxs):
+                #print('Running pred')
+                pred = model.apply({"image": img["data"][:, :, idx],
+                                    "resolution": np.abs(img["resolution"][:2]),
+                                    "split_laterality": False})
+                for label in pred:
+                    #print('Evaluating', label)
+                    mask_name = f"mask_{label}"
+                    if mask_name in img:
+                        gt = img[mask_name][:, :, idx]
+                    else: # if the validation set had split laterality
+                        gt_L = None
+                        if mask_name + '_L' in img:
+                            gt_L = img[mask_name + '_L'][:, :, idx]
+                        gt_R = None
+                        if mask_name + '_R' in img:
+                            gt_R = img[mask_name + '_R'][:, :, idx]
+                        gt = np.logical_or(gt_L, gt_R) #Note: logical_or(None, None) == None
+
+                    if gt is None:
+                        print(f'Warning: {label} not found in validation')
+                        continue
+
+                    nr_voxels = gt.sum()
+                    dice = calc_dice_score(gt, pred[label])
+                    dice_scores.append(dice)
+                    n_voxels.append(nr_voxels)
+                    scores[label].append([dice, nr_voxels])
+                del pred
+
+            del img
+
         if cleanup:
             try:
-                tf.keras.backend.clear_session() # this should clear the memory leaks by tensorflow
+                tf.keras.backend.clear_session()  # this should clear the memory leaks by tensorflow
             except:
-                print("Error cleaning keras session")
+                try:
+                    torch.cuda.empty_cache()  # clear torch memory
+                except Exception as e:
+                    print(f"Error cleaning: {e}")
+
+        # print(f"scores.items() {scores.items()}")
         scores_per_label = {k: np.array(v)[:, 0].mean() for k, v in scores.items()}
         print('Unweighted scores per label:', scores_per_label)
 
@@ -224,7 +273,7 @@ def evaluate_model(model_type_or_dir: Union[str, Path], model: DynamicDLModel, s
     return mean_score
 
 
-def merge_model(model_type, new_model_path):
+def merge_model(model_type, model_class, new_model_path):
     """
     This will take a (weighted) average of the weights of two models.
     If the new_model or the resulting merged model have a lower validation dice score
@@ -232,11 +281,18 @@ def merge_model(model_type, new_model_path):
     new default model.
     """
     print("Merging...")
-    config = json.load(open("db/server_config.json"))
+    config = json.load(open(config_file)) #(("db/server_config.json"))
 
     latest_timestamp = get_models(model_type)[-1]
-    latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
-    new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
+    # print(latest_timestamp)
+    # latest_model = DynamicDLModel.Load(open(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model", 'rb'))
+    # new_model = DynamicDLModel.Load(open(new_model_path, 'rb'))
+    # print(f'model_class {model_class}')
+
+    # print(f"latest_model (l'originale)")    
+    latest_model = generic_load_model(f"{MODELS_DIR}/{model_type}/{latest_timestamp}.model")
+    # print(f"new_model (IL))")   
+    new_model = generic_load_model(new_model_path)
 
     # Check that model_ids are identical
     if latest_model.model_id != new_model.model_id:
@@ -275,7 +331,11 @@ def merge_model(model_type, new_model_path):
     try:
         tf.keras.backend.clear_session()  # this should clear the memory leaks by tensorflow
     except:
-        print("Error cleaning keras session")
+        try:
+            torch.cuda.empty_cache() # clear torch memory
+        except Exception as e:
+            print(f"Error cleaning: {e}")
+        # print("Error cleaning keras session")
 
     del latest_model
     del merged_model
@@ -291,14 +351,30 @@ def merge_model(model_type, new_model_path):
 def log(text, p=False):
     if p:
         print(text)
-    with open("db/log.txt", "a") as f:
+    with open(f"{MODELS_DIR}/log.txt", "a") as f:
         f.write(f"{datetime.datetime.now()} {text}\n")
 
 def log_dice_to_csv(model_name, dice, comment=''):
-    with open("db/dice.csv", "a") as f:
+    with open(f"{os.path.dirname(os.path.abspath(__file__))}/db/dice.csv", "a") as f:
         f.write(f"{datetime.datetime.now()};{model_name};{dice:.6f};{comment}\n")
 
 if __name__ == '__main__':
     ####### For testing #######
-    model = DynamicDLModel.Load(open(f"{MODELS_DIR}/Thigh/1610001000.model", 'rb'))
-    r = evaluate_model("Thigh", model)
+    # model = DynamicDLModel.Load(open(f"{MODELS_DIR}/Thigh/1610001000.model", 'rb'))
+    # r = evaluate_model("Thigh", model)
+
+    MODELS_DIR = "db/models"
+    TEST_DATA_DIR = "db/test_data"
+
+    # model = DynamicEnsembleModel.Load(open(f"{MODELS_DIR}/CHP/1610001000.model", 'rb'))
+    # r = evaluate_model("CHP", model)
+
+    MODEL_CLASSES = {
+        "DynamicDLModel": DynamicDLModel,
+        "DynamicTorchModel": DynamicTorchModel,
+        "DynamicEnsembleModel": DynamicEnsembleModel,
+    }
+
+
+    
+

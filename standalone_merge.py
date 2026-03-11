@@ -23,8 +23,9 @@ from utils import merge_model, log
 if __name__ == '__main__':
     parser = ArgumentParser("Wrapper around utils.merge_model which can be called using subprocess.call")
     parser.add_argument('model_type', type=str, help='model type')
+    parser.add_argument('model_class', type=str, help='model class (i.e. DynamicDLModel)')
     parser.add_argument('new_model_path', type=str, help='path of the new model we want to merge')
     args = parser.parse_args()
 
     log("Using standalone merger", p=True)
-    merge_model(args.model_type, args.new_model_path)
+    merge_model(args.model_type, args.model_class, args.new_model_path)
