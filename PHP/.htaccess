@@ -1,0 +1,35 @@
+# Dafne PHP server – Apache configuration
+# Place this file (and index.php) in the DocumentRoot for this virtual host.
+# AllowOverride All must be enabled in the Apache site configuration.
+
+Options -Indexes
+
+# Increase limits for large model file uploads.
+# Adjust these values to match your largest model files.
+php_value upload_max_filesize 500M
+php_value post_max_size       512M
+php_value memory_limit        128M
+php_value max_execution_time  300
+
+# Rewrite every request that does not map to an existing file or directory
+# to index.php, where the PHP router handles it.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+
+# -----------------------------------------------------------------------
+# Nginx equivalent (add to your server {} block instead of using this file):
+#
+#   client_max_body_size 512M;
+#
+#   location / {
+#       try_files $uri $uri/ /index.php$is_args$args;
+#   }
+#
+#   location ~ \.php$ {
+#       include        fastcgi_params;
+#       fastcgi_pass   unix:/run/php/php8.2-fpm.sock;   # adjust to your PHP-FPM socket
+#       fastcgi_param  SCRIPT_FILENAME $document_root$fastcgi_script_name;
+#   }
+# -----------------------------------------------------------------------
