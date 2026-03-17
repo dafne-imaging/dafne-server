@@ -405,6 +405,17 @@ body {
 }
 .topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
 .topbar .subtitle { opacity: .65; font-size: 13px; margin-left: 10px; }
+.topnav { display: flex; gap: 2px; margin-left: 20px; }
+.topnav a {
+    color: rgba(255,255,255,.6);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 13px;
+    border-radius: 5px;
+    transition: background .15s, color .15s;
+}
+.topnav a:hover  { background: rgba(255,255,255,.1); color: #fff; }
+.topnav a.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
 
 /* ---- Layout ---- */
 .container { max-width: 960px; margin: 32px auto; padding: 0 20px; }
@@ -657,9 +668,13 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
 <?php else: ?>
 
 <div class="topbar">
-  <div style="display:flex;align-items:baseline;gap:6px">
+  <div style="display:flex;align-items:center">
     <h1>Dafne Server</h1>
-    <span class="subtitle">User Management</span>
+    <nav class="topnav">
+      <a href="admin.php" class="active">Users</a>
+      <a href="admin_models.php">Models</a>
+      <a href="admin_upload.php">Upload</a>
+    </nav>
   </div>
   <form method="post" style="margin:0">
     <input type="hidden" name="action" value="logout">
