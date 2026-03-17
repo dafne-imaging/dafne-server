@@ -12,11 +12,11 @@ php_value memory_limit        128M
 php_value max_execution_time  300
 
 # Rewrite every request that does not map to an existing file or directory
-# to index.php, where the PHP router handles it.
+# to api.php, where the PHP router handles it.
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.php [QSA,L]
+RewriteRule ^ api.php [QSA,L]
 
 # -----------------------------------------------------------------------
 # Nginx equivalent (add to your server {} block instead of using this file):
@@ -24,7 +24,7 @@ RewriteRule ^ index.php [QSA,L]
 #   client_max_body_size 512M;
 #
 #   location / {
-#       try_files $uri $uri/ /index.php$is_args$args;
+#       try_files $uri $uri/ /api.php$is_args$args;
 #   }
 #
 #   location ~ \.php$ {
