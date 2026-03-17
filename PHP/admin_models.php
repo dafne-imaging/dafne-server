@@ -194,185 +194,7 @@ foreach ($model_types as $mt) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dafne – Model Permissions</title>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 14px;
-    background: #f0f2f5;
-    color: #1a1a2e;
-    min-height: 100vh;
-}
-
-/* ---- Top bar ---- */
-.topbar {
-    background: #1a3a5c;
-    color: #fff;
-    padding: 0 24px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
-.topnav { display: flex; gap: 2px; margin-left: 20px; }
-.topnav a {
-    color: rgba(255,255,255,.6);
-    text-decoration: none;
-    font-size: 13px;
-    padding: 6px 13px;
-    border-radius: 5px;
-    transition: background .15s, color .15s;
-}
-.topnav a:hover  { background: rgba(255,255,255,.1); color: #fff; }
-.topnav a.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
-
-/* ---- Layout ---- */
-.container { max-width: 860px; margin: 32px auto; padding: 0 20px; }
-
-/* ---- Cards ---- */
-.card {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.1);
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-.card-header {
-    background: #f7f9fc;
-    border-bottom: 1px solid #e4e8ef;
-    padding: 13px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.card-header h2 { font-size: 15px; font-weight: 700; color: #1a3a5c; }
-.card-body { padding: 0; }
-
-/* ---- Flash ---- */
-.flash { border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
-.flash.success { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
-.flash.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
-
-/* ---- Buttons ---- */
-.btn {
-    display: inline-block;
-    padding: 6px 14px;
-    border-radius: 5px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: opacity .15s;
-    white-space: nowrap;
-    text-decoration: none;
-}
-.btn:hover { opacity: .85; }
-.btn-primary { background: #1a3a5c; color: #fff; border: none; }
-.btn-outline  { background: transparent; border-color: #cbd5e1; color: #475569; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-xs { padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
-.btn-xs.access { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.btn-xs.merge  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-.btn-xs.both   { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
-.btn-xs.clear  { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
-
-/* ---- Quick-action strip ---- */
-.quick-actions {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-.quick-actions span {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-right: 2px;
-}
-
-/* ---- Permissions table ---- */
-.perm-table { width: 100%; border-collapse: collapse; }
-.perm-table th {
-    text-align: left;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #64748b;
-    padding: 8px 16px;
-    background: #f7f9fc;
-    border-bottom: 1px solid #e4e8ef;
-}
-.perm-table th.center { text-align: center; }
-.perm-table td {
-    padding: 9px 16px;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: middle;
-}
-.perm-table tr:last-child td { border-bottom: none; }
-.perm-table tr:hover td { background: #fafbfc; }
-.user-name  { font-weight: 500; font-size: 13px; }
-.user-email { font-size: 12px; color: #94a3b8; margin-top: 1px; }
-.td-check { text-align: center; }
-
-input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #1a3a5c; }
-
-/* ---- Form footer ---- */
-.card-footer {
-    padding: 12px 16px;
-    background: #f7f9fc;
-    border-top: 1px solid #e4e8ef;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-}
-.user-count { font-size: 12px; color: #94a3b8; }
-
-/* ---- Login ---- */
-.login-wrap {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f0f2f5;
-}
-.login-card {
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.12);
-    padding: 40px 36px;
-    width: 360px;
-}
-.login-card h2 { font-size: 20px; font-weight: 700; color: #1a3a5c; margin-bottom: 6px; }
-.login-card p  { color: #64748b; font-size: 13px; margin-bottom: 24px; }
-.form-row { margin-bottom: 14px; }
-.form-row label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
-.form-row input[type="password"] {
-    width: 100%;
-    padding: 8px 11px;
-    border: 1px solid #cbd5e1;
-    border-radius: 5px;
-    font-size: 14px;
-    color: #1a1a2e;
-    outline: none;
-}
-.form-row input:focus { border-color: #1a3a5c; }
-
-/* ---- Empty states ---- */
-.empty-notice {
-    padding: 32px 20px;
-    text-align: center;
-    color: #94a3b8;
-    font-size: 13px;
-}
-
-/* ---- Highlight on anchor jump ---- */
-.card.highlighted { box-shadow: 0 0 0 3px #fbbf24; }
-</style>
+<link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
 
@@ -415,7 +237,7 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
   </form>
 </div>
 
-<div class="container">
+<div class="container container-medium">
 
   <?php foreach ($flashes as $f): ?>
     <div class="flash <?= h($f['type']) ?>"><?= h($f['msg']) ?></div>
@@ -457,7 +279,7 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
         <?php endif ?>
       </div>
 
-      <div class="card-body">
+      <div class="card-body card-body-flush">
         <?php if (empty($users)): ?>
           <div class="empty-notice">No users exist yet.</div>
         <?php else: ?>

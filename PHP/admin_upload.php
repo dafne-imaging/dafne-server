@@ -336,197 +336,7 @@ foreach ($flashes as $f) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dafne – Upload Model</title>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 14px;
-    background: #f0f2f5;
-    color: #1a1a2e;
-    min-height: 100vh;
-}
-
-/* ---- Top bar ---- */
-.topbar {
-    background: #1a3a5c;
-    color: #fff;
-    padding: 0 24px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: .02em; }
-.topnav { display: flex; gap: 2px; margin-left: 20px; }
-.topnav a {
-    color: rgba(255,255,255,.6);
-    text-decoration: none;
-    font-size: 13px;
-    padding: 6px 13px;
-    border-radius: 5px;
-    transition: background .15s, color .15s;
-}
-.topnav a:hover  { background: rgba(255,255,255,.1); color: #fff; }
-.topnav a.active { background: rgba(255,255,255,.18); color: #fff; font-weight: 600; }
-
-/* ---- Layout ---- */
-.container { max-width: 640px; margin: 32px auto; padding: 0 20px; }
-
-/* ---- Card ---- */
-.card {
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.1);
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-.card-header {
-    background: #f7f9fc;
-    border-bottom: 1px solid #e4e8ef;
-    padding: 13px 20px;
-}
-.card-header h2 { font-size: 14px; font-weight: 600; color: #1a3a5c; }
-.card-body { padding: 24px; }
-
-/* ---- Flash ---- */
-.flash { border-radius: 6px; padding: 11px 14px; margin-bottom: 16px; font-size: 13px; }
-.flash.success { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
-.flash.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
-
-/* ---- Result banner ---- */
-.result-banner {
-    background: #f0fdf4;
-    border: 1px solid #86efac;
-    border-radius: 8px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-}
-.result-banner h3 { font-size: 14px; font-weight: 600; color: #166534; margin-bottom: 10px; }
-.result-row { display: flex; gap: 12px; font-size: 13px; margin-bottom: 5px; align-items: baseline; }
-.result-label { font-weight: 600; color: #475569; min-width: 100px; }
-.result-val   { font-family: 'SF Mono','Fira Code',monospace; color: #1a1a2e; word-break: break-all; }
-
-/* ---- Form ---- */
-.form-row { margin-bottom: 20px; }
-.form-row label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #475569;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-}
-.form-row .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; }
-.form-row input[type="text"] {
-    width: 100%;
-    padding: 9px 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    font-size: 14px;
-    color: #1a1a2e;
-    outline: none;
-    transition: border-color .15s;
-}
-.form-row input[type="text"]:focus { border-color: #1a3a5c; }
-
-/* File input */
-.file-input-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border: 1px dashed #cbd5e1;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: border-color .15s, background .15s;
-    background: #fafbfc;
-}
-.file-input-wrap:hover { border-color: #1a3a5c; background: #f0f5ff; }
-.file-input-wrap input[type="file"] { display: none; }
-.file-input-icon { font-size: 20px; flex-shrink: 0; }
-.file-input-text { font-size: 13px; color: #64748b; }
-.file-input-text strong { color: #1a1a2e; font-weight: 600; display: block; margin-bottom: 1px; }
-.file-selected { border-color: #059669; background: #f0fdf4; }
-.file-selected .file-input-text strong { color: #065f46; }
-
-/* Existing models */
-.model-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.model-pill {
-    font-size: 12px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
-    cursor: pointer;
-    transition: background .12s;
-}
-.model-pill:hover { background: #dbeafe; }
-
-/* Buttons */
-.btn {
-    display: inline-block;
-    padding: 9px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: opacity .15s;
-}
-.btn:hover { opacity: .85; }
-.btn-primary { background: #1a3a5c; color: #fff; border: none; }
-.btn-outline  { background: transparent; border-color: #cbd5e1; color: #475569; }
-.btn-sm { padding: 4px 10px; font-size: 12px; font-weight: 500; }
-
-/* ---- Login ---- */
-.login-wrap {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f0f2f5;
-}
-.login-card {
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.12);
-    padding: 40px 36px;
-    width: 360px;
-}
-.login-card h2 { font-size: 20px; font-weight: 700; color: #1a3a5c; margin-bottom: 6px; }
-.login-card p  { color: #64748b; font-size: 13px; margin-bottom: 24px; }
-.login-row { margin-bottom: 14px; }
-.login-row label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
-.login-row input {
-    width: 100%;
-    padding: 8px 11px;
-    border: 1px solid #cbd5e1;
-    border-radius: 5px;
-    font-size: 14px;
-    outline: none;
-}
-.login-row input:focus { border-color: #1a3a5c; }
-
-/* API reference */
-.api-ref {
-    background: #1e293b;
-    color: #e2e8f0;
-    border-radius: 8px;
-    padding: 16px 18px;
-    font-size: 12px;
-    font-family: 'SF Mono','Fira Code',monospace;
-    white-space: pre;
-    overflow-x: auto;
-    line-height: 1.6;
-    margin-top: 0;
-}
-.api-ref .comment { color: #64748b; }
-.api-ref .key     { color: #7dd3fc; }
-.api-ref .val     { color: #86efac; }
-</style>
+<link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
 
@@ -541,7 +351,7 @@ body {
     <?php endif ?>
     <form method="post">
       <input type="hidden" name="action" value="login">
-      <div class="login-row">
+      <div class="form-row">
         <label for="api_key">API Key</label>
         <input type="password" id="api_key" name="api_key" autocomplete="off" autofocus required>
       </div>
@@ -569,7 +379,7 @@ body {
   </form>
 </div>
 
-<div class="container">
+<div class="container container-narrow">
 
   <?php foreach ($display_flashes as $f): ?>
     <div class="flash <?= h($f['type']) ?>"><?= h($f['msg']) ?></div>
@@ -656,7 +466,7 @@ body {
           </label>
         </div>
 
-        <button type="submit" class="btn btn-primary">Upload Model</button>
+        <button type="submit" class="btn btn-primary btn-lg">Upload Model</button>
       </form>
     </div>
   </div>
