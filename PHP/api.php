@@ -28,8 +28,15 @@ if ($is_multipart) {
     $body = json_decode($raw, true) ?? [];
 }
 
-// Strip the query string and any trailing slash from the request path.
-$path = rtrim((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+// Strip the query string, the subdirectory prefix (if deployed under one),
+// and any trailing slash from the request path so route keys always start
+// with a single slash (e.g. "/get_model" regardless of base directory).
+$full_path  = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$script_dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+$path       = $script_dir !== ''
+    ? '/' . ltrim(substr($full_path, strlen($script_dir)), '/')
+    : $full_path;
+$path = rtrim($path, '/') ?: '/';
 
 // ---------------------------------------------------------------------------
 // Response helpers

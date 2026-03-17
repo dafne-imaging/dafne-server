@@ -1,5 +1,6 @@
 # Dafne PHP server – Apache configuration
-# Place this file (and index.php) in the DocumentRoot for this virtual host.
+# Place this file (and api.php) in the DocumentRoot for this virtual host,
+# or in any subdirectory — RewriteBase is set automatically from the file location.
 # AllowOverride All must be enabled in the Apache site configuration.
 
 Options -Indexes
@@ -13,7 +14,10 @@ php_value max_execution_time  300
 
 # Rewrite every request that does not map to an existing file or directory
 # to api.php, where the PHP router handles it.
+# RewriteBase must match the subdirectory where this file lives.
+# "/" if deployed at the root, "/api" if deployed under /api/, etc.
 RewriteEngine On
+RewriteBase /
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ api.php [QSA,L]
