@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/lib/db.php';
 require_once __DIR__ . '/lib/logger.php';
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/models.php';
@@ -108,21 +109,29 @@ switch ($path) {
 
 function handle_get_available_models(array $body): never
 {
-    if (!valid_credentials($body['api_key'] ?? '')) {
+    $api_key = $body['api_key'] ?? '';
+    if (!valid_credentials($api_key)) {
         json_respond(['message' => 'invalid access code'], 401);
     }
-    json_respond(['models' => get_model_types()]);
+    $all_types  = get_model_types();
+    $accessible = get_accessible_models($api_key);
+    json_respond(['models' => array_values(array_intersect($all_types, $accessible))]);
 }
 
 function handle_info_model(array $body): never
 {
-    if (!valid_credentials($body['api_key'] ?? '')) {
+    $api_key = $body['api_key'] ?? '';
+    if (!valid_credentials($api_key)) {
         json_respond(['message' => 'invalid access code'], 401);
     }
 
     $model_type = sanitize_model_type($body['model_type'] ?? '');
     if ($model_type === null) {
         json_respond(['message' => 'invalid model type'], 400);
+    }
+
+    if (!can_access_model($api_key, $model_type)) {
+        json_respond(['message' => 'access denied for this model'], 403);
     }
 
     $timestamps = get_canonical_models($model_type);
@@ -157,7 +166,8 @@ function handle_info_model(array $body): never
 
 function handle_get_model(array $body): never
 {
-    if (!valid_credentials($body['api_key'] ?? '')) {
+    $api_key = $body['api_key'] ?? '';
+    if (!valid_credentials($api_key)) {
         json_respond(['message' => 'invalid access code'], 401);
     }
 
@@ -168,12 +178,16 @@ function handle_get_model(array $body): never
         json_respond(['message' => 'invalid parameters'], 400);
     }
 
+    if (!can_access_model($api_key, $model_type)) {
+        json_respond(['message' => 'access denied for this model'], 403);
+    }
+
     $model_path = MODELS_DIR . "/{$model_type}/{$timestamp}.model";
     if (!is_file($model_path)) {
         json_respond(['message' => 'invalid model - not found'], 500);
     }
 
-    $username = get_username($body['api_key']);
+    $username = get_username($api_key);
     server_log("get_model accessed by {$username} - {$model_type} - {$timestamp}");
 
     file_respond($model_path, file_sha256($model_path, true));
@@ -197,6 +211,11 @@ function handle_upload_model(array $body): never
     if (!in_array($model_type, get_model_types(), true)) {
         server_log("Upload of {$model_type} from {$username} rejected: unknown model type");
         json_respond(['message' => 'invalid model type'], 500);
+    }
+
+    if (!can_access_model($api_key, $model_type)) {
+        server_log("Upload of {$model_type} from {$username} rejected: access denied");
+        json_respond(['message' => 'access denied for this model'], 403);
     }
 
     if (!isset($_FILES['model_binary']) || $_FILES['model_binary']['error'] !== UPLOAD_ERR_OK) {
@@ -295,13 +314,15 @@ function handle_log_message(array $body): never
  */
 function handle_get_pending_uploads(array $body): never
 {
-    if (!valid_merge_credentials($body['api_key'] ?? '')) {
-        json_respond(['message' => 'invalid access code'], 401);
-    }
-
+    $api_key    = $body['api_key'] ?? '';
     $model_type = sanitize_model_type($body['model_type'] ?? '');
+
     if ($model_type === null) {
         json_respond(['message' => 'invalid model type'], 400);
+    }
+
+    if (!can_merge_model($api_key, $model_type)) {
+        json_respond(['message' => 'invalid access code'], 401);
     }
 
     if (!in_array($model_type, get_model_types(), true)) {
@@ -322,15 +343,16 @@ function handle_get_pending_uploads(array $body): never
  */
 function handle_download_upload(array $body): never
 {
-    if (!valid_merge_credentials($body['api_key'] ?? '')) {
-        json_respond(['message' => 'invalid access code'], 401);
-    }
-
+    $api_key    = $body['api_key'] ?? '';
     $model_type = sanitize_model_type($body['model_type'] ?? '');
     $filename   = sanitize_upload_filename($body['filename'] ?? '');
 
     if ($model_type === null || $filename === null) {
         json_respond(['message' => 'invalid parameters'], 400);
+    }
+
+    if (!can_merge_model($api_key, $model_type)) {
+        json_respond(['message' => 'invalid access code'], 401);
     }
 
     $file_path = MODELS_DIR . "/{$model_type}/uploads/{$filename}";
@@ -352,16 +374,16 @@ function handle_download_upload(array $body): never
  */
 function handle_delete_upload(array $body): never
 {
-    $api_key = $body['api_key'] ?? '';
-    if (!valid_merge_credentials($api_key)) {
-        json_respond(['message' => 'invalid access code'], 401);
-    }
-
+    $api_key    = $body['api_key'] ?? '';
     $model_type = sanitize_model_type($body['model_type'] ?? '');
     $filename   = sanitize_upload_filename($body['filename'] ?? '');
 
     if ($model_type === null || $filename === null) {
         json_respond(['message' => 'invalid parameters'], 400);
+    }
+
+    if (!can_merge_model($api_key, $model_type)) {
+        json_respond(['message' => 'invalid access code'], 401);
     }
 
     $file_path = MODELS_DIR . "/{$model_type}/uploads/{$filename}";
@@ -391,14 +413,15 @@ function handle_delete_upload(array $body): never
  */
 function handle_upload_merged_model(array $body): never
 {
-    $api_key = $body['api_key'] ?? '';
-    if (!valid_merge_credentials($api_key)) {
-        json_respond(['message' => 'invalid access code'], 401);
-    }
-
+    $api_key    = $body['api_key'] ?? '';
     $model_type = sanitize_model_type($body['model_type'] ?? '');
+
     if ($model_type === null) {
         json_respond(['message' => 'invalid model type'], 400);
+    }
+
+    if (!can_merge_model($api_key, $model_type)) {
+        json_respond(['message' => 'invalid access code'], 401);
     }
 
     if (!in_array($model_type, get_model_types(), true)) {

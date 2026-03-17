@@ -1,58 +1,145 @@
 <?php
 declare(strict_types=1);
 
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Check whether $api_key belongs to a standard (user) credential.
+ * Hash an API key for comparison against the database.
+ * Keys are stored as unsalted SHA-256 hex digests.
+ */
+function hash_api_key(string $api_key): string
+{
+    return hash('sha256', $api_key);
+}
+
+/**
+ * Fetch the user row for the given raw API key, or null if not found.
+ * Result is cached for the lifetime of the current request to avoid
+ * redundant DB round-trips within a single handler call chain.
+ *
+ * Returned keys: id (int), name (string), email (string), is_admin (bool).
+ */
+function get_user_by_key(string $api_key): ?array
+{
+    static $cache = [];
+
+    if ($api_key === '') {
+        return null;
+    }
+
+    if (!array_key_exists($api_key, $cache)) {
+        $stmt = get_db()->prepare(
+            'SELECT id, name, email, is_admin FROM users WHERE api_key_hash = ?'
+        );
+        $stmt->execute([hash_api_key($api_key)]);
+        $row = $stmt->fetch();
+        $cache[$api_key] = $row !== false ? $row : null;
+    }
+
+    return $cache[$api_key];
+}
+
+// ---------------------------------------------------------------------------
+// Basic credential checks
+// ---------------------------------------------------------------------------
+
+/**
+ * Return true if the API key belongs to a registered user.
  */
 function valid_credentials(string $api_key): bool
 {
-    return _lookup_key(API_KEYS_FILE, $api_key) !== null;
+    return get_user_by_key($api_key) !== null;
 }
 
 /**
- * Return the username associated with $api_key, or null if not found.
+ * Return the display name for the given API key, or null if not found.
  */
 function get_username(string $api_key): ?string
 {
-    return _lookup_key(API_KEYS_FILE, $api_key);
+    $user = get_user_by_key($api_key);
+    return $user !== null ? $user['name'] : null;
 }
 
+// ---------------------------------------------------------------------------
+// Per-model access permissions
+// ---------------------------------------------------------------------------
+
 /**
- * Check whether $api_key belongs to a merge-client credential.
- * Merge client keys live in a separate file (db/merge_api_keys.txt) so
- * they can never be confused with standard user keys.
+ * Return true if the user may access (read/upload) the given model type.
+ * Access is granted by a row in users_accesspermissions.
  */
-function valid_merge_credentials(string $api_key): bool
+function can_access_model(string $api_key, string $model_type): bool
 {
-    return _lookup_key(MERGE_API_KEYS_FILE, $api_key) !== null;
+    $user = get_user_by_key($api_key);
+    if ($user === null) {
+        return false;
+    }
+    $stmt = get_db()->prepare(
+        'SELECT 1 FROM users_accesspermissions WHERE user_id = ? AND model_type = ?'
+    );
+    $stmt->execute([$user['id'], $model_type]);
+    return $stmt->fetch() !== false;
 }
 
 /**
- * Return the username associated with a merge-client $api_key, or null if not found.
+ * Return the list of model types the user is allowed to access.
+ */
+function get_accessible_models(string $api_key): array
+{
+    $user = get_user_by_key($api_key);
+    if ($user === null) {
+        return [];
+    }
+    $stmt = get_db()->prepare(
+        'SELECT model_type FROM users_accesspermissions WHERE user_id = ?'
+    );
+    $stmt->execute([$user['id']]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
+// ---------------------------------------------------------------------------
+// Per-model merge permissions
+// ---------------------------------------------------------------------------
+
+/**
+ * Return true if the user may merge (download uploads / push merged models)
+ * for the given model type.
+ * Merge access is granted by a row in users_mergepermissions.
+ */
+function can_merge_model(string $api_key, string $model_type): bool
+{
+    $user = get_user_by_key($api_key);
+    if ($user === null) {
+        return false;
+    }
+    $stmt = get_db()->prepare(
+        'SELECT 1 FROM users_mergepermissions WHERE user_id = ? AND model_type = ?'
+    );
+    $stmt->execute([$user['id'], $model_type]);
+    return $stmt->fetch() !== false;
+}
+
+/**
+ * Return the display name for a merge-client API key (same as get_username).
+ * Kept for call-site symmetry with the previous file-based implementation.
  */
 function get_merge_username(string $api_key): ?string
 {
-    return _lookup_key(MERGE_API_KEYS_FILE, $api_key);
+    return get_username($api_key);
 }
 
+// ---------------------------------------------------------------------------
+// Administration
+// ---------------------------------------------------------------------------
+
 /**
- * Internal helper: scan a key file for a matching key and return the username.
- * File format: one entry per line, "username:api_key".
+ * Return true if the user has the administration permission.
+ * Admins may change permissions for other users.
  */
-function _lookup_key(string $file, string $api_key): ?string
+function is_admin(string $api_key): bool
 {
-    if (!is_file($file)) {
-        return null;
-    }
-    $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    if ($lines === false) {
-        return null;
-    }
-    foreach ($lines as $line) {
-        $parts = explode(':', trim($line), 2);
-        if (count($parts) === 2 && $parts[1] === $api_key) {
-            return $parts[0];
-        }
-    }
-    return null;
+    $user = get_user_by_key($api_key);
+    return $user !== null && (bool) $user['is_admin'];
 }
