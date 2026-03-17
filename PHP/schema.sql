@@ -38,3 +38,24 @@ CREATE TABLE IF NOT EXISTS users_mergepermissions (
     CONSTRAINT fk_merge_user
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Pending user access requests submitted via the public request form.
+-- Rows are created with status='pending' and updated to 'approved' or 'rejected'
+-- by an admin. Approved rows produce a corresponding row in `users`.
+CREATE TABLE IF NOT EXISTS user_requests (
+    id               INT          NOT NULL AUTO_INCREMENT,
+    name             VARCHAR(255) NOT NULL,
+    email            VARCHAR(255) NOT NULL,
+    reason           TEXT         NOT NULL,
+    -- JSON array of model type strings the user requested access to, e.g. '["Thigh","Hip"]'.
+    requested_models TEXT         NOT NULL DEFAULT '[]',
+    status           ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at      DATETIME     NULL,
+    -- Admin user who approved or rejected the request.
+    reviewed_by      INT          NULL,
+
+    PRIMARY KEY (id),
+    CONSTRAINT fk_request_reviewer
+        FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
