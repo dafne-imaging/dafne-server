@@ -146,7 +146,7 @@ function delete_older_canonical_models(string $model_type, int $keep = -1): void
  */
 function sanitize_model_type(string $input): ?string
 {
-    return preg_match('/^[a-zA-Z0-9_\-]+$/', $input) ? $input : null;
+    return preg_match('/^[a-zA-Z0-9\-]+$/', $input) ? $input : null;
 }
 
 /**

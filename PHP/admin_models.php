@@ -9,6 +9,7 @@ require_once __DIR__ . '/lib/models.php';
 
 // ---------------------------------------------------------------------------
 // CSRF
+// CSRF
 // ---------------------------------------------------------------------------
 
 if (empty($_SESSION['csrf_token'])) {
@@ -248,14 +249,14 @@ foreach ($model_types as $mt) {
     <div class="card">
       <div class="empty-notice">
         No model types are configured on this server yet.<br>
-        Add model directories under <code>db/models/</code> to get started.
+        Add model directories under <code>models/</code> to get started.
       </div>
     </div>
   <?php else: ?>
 
     <?php foreach ($model_types as $mt):
         $users   = $model_data[$mt];
-        $form_id = 'form-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $mt);
+        $form_id = 'form-' . preg_replace('/[^a-zA-Z0-9-]/', '', $mt);
     ?>
     <div class="card" id="model-<?= h(urlencode($mt)) ?>">
       <div class="card-header">

@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $model_type = sanitize_model_type(trim($_POST['model_type'] ?? ''));
 
             if ($model_type === null || $model_type === '') {
-                flash('error', 'Model name is required and must only contain letters, numbers, underscores, and hyphens.');
+                flash('error', 'Model name is required and must only contain letters, numbers, and hyphens.');
             } elseif (!isset($_FILES['model_binary']) || !isset($_FILES['model_json'])) {
                 flash('error', 'Both files are required.');
             } else {

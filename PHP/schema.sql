@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS user_requests (
     email            VARCHAR(255) NOT NULL,
     reason           TEXT         NOT NULL,
     -- JSON array of model type strings the user requested access to, e.g. '["Thigh","Hip"]'.
-    requested_models TEXT         NOT NULL DEFAULT '[]',
+    requested_models TEXT         NOT NULL,
     status           ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
     created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at      DATETIME     NULL,

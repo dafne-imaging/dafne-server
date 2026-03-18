@@ -220,11 +220,13 @@ if (!file_exists($schema_file)) {
     abort("schema.sql not found at {$schema_file}");
 }
 
-// Split on semicolons, skip comments and blank statements
-$raw_sql    = (string) file_get_contents($schema_file);
+// Strip comment and blank lines first, then split on semicolons.
+$raw_sql = (string) file_get_contents($schema_file);
+$lines   = explode("\n", $raw_sql);
+$lines   = array_filter($lines, fn($l) => !str_starts_with(ltrim($l), '--') && trim($l) !== '');
 $statements = array_filter(
-    array_map('trim', explode(';', $raw_sql)),
-    fn($s) => $s !== '' && !str_starts_with(ltrim($s), '--')
+    array_map('trim', explode(';', implode("\n", $lines))),
+    fn($s) => $s !== ''
 );
 
 foreach ($statements as $sql) {
