@@ -110,7 +110,7 @@ function file_sha256(string $path, bool $cache = false): string
 
 /**
  * Delete the oldest canonical models for $model_type, keeping only the newest $keep.
- * Reads $keep from server_config.json when not supplied explicitly.
+ * Uses NR_MODELS_TO_KEEP from config.php when not supplied explicitly.
  *
  * NOTE: This function is currently COMMENTED OUT at the call-site in
  * handle_upload_merged_model(). Uncomment that call once you are ready to
@@ -119,8 +119,7 @@ function file_sha256(string $path, bool $cache = false): string
 function delete_older_canonical_models(string $model_type, int $keep = -1): void
 {
     if ($keep < 0) {
-        $config = json_decode((string) file_get_contents(SERVER_CONFIG_FILE), true);
-        $keep   = (int) ($config['nr_models_to_keep'] ?? 5);
+        $keep = NR_MODELS_TO_KEEP;
     }
 
     $timestamps = get_canonical_models($model_type);

@@ -21,7 +21,7 @@ function handle_upload_data(array $body): array
         return ['__status' => 400, 'message' => 'file upload error'];
     }
 
-    $data_dir = DB_DIR . "/uploaded_data/{$username}";
+    $data_dir = UPLOAD_DATA_DIR . "/{$username}";
     if (!is_dir($data_dir)) {
         mkdir($data_dir, 0755, true);
     }
