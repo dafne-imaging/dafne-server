@@ -59,3 +59,13 @@ CREATE TABLE IF NOT EXISTS user_requests (
     CONSTRAINT fk_request_reviewer
         FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Server-side activity log written by server_log().
+CREATE TABLE IF NOT EXISTS server_log (
+    id         INT          NOT NULL AUTO_INCREMENT,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    message    TEXT         NOT NULL,
+
+    PRIMARY KEY (id),
+    KEY idx_server_log_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

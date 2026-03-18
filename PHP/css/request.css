@@ -1,0 +1,107 @@
+/* ==========================================================================
+   Dafne Server – Public access request form stylesheet
+   Used by: request.php
+   ========================================================================== */
+
+/* ---- Reset ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ---- Base ---- */
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+}
+
+/* ---- Page card ---- */
+.page-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    width: 100%;
+    max-width: 560px;
+    overflow: hidden;
+}
+
+.page-header    { background: #1a3a5c; color: #fff; padding: 24px 28px; }
+.page-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.page-header p  { opacity: .75; font-size: 13px; line-height: 1.5; }
+
+.page-body { padding: 28px; }
+
+/* ---- Flash messages ---- */
+.flash         { border-radius: 6px; padding: 12px 14px; margin-bottom: 18px; font-size: 13px; }
+.flash.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+.flash.success { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
+.flash ul      { padding-left: 18px; margin-top: 4px; }
+
+/* ---- Form ---- */
+.form-row       { margin-bottom: 18px; }
+.form-row label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.form-row input[type="text"],
+.form-row input[type="email"],
+.form-row textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1a1a2e;
+    outline: none;
+    transition: border-color .15s;
+    resize: vertical;
+}
+.form-row input:focus,
+.form-row textarea:focus { border-color: #1a3a5c; }
+
+/* ---- Model checkboxes ---- */
+.models-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+.model-check          { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: background .12s, border-color .12s; font-size: 13px; user-select: none; }
+.model-check:hover    { background: #f8fafc; border-color: #94a3b8; }
+.model-check input    { accent-color: #1a3a5c; flex-shrink: 0; }
+.model-check.all-check       { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.model-check.all-check:hover { background: #dbeafe; }
+
+/* ---- Button ---- */
+.btn {
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity .15s;
+}
+.btn:hover:not(:disabled) { opacity: .85; }
+.btn:disabled             { opacity: .5; cursor: not-allowed; }
+.btn-primary              { background: #1a3a5c; color: #fff; width: 100%; }
+
+/* ---- reCAPTCHA note ---- */
+.recaptcha-note   { margin-top: 14px; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.5; }
+.recaptcha-note a { color: #64748b; }
+
+/* ---- Success state ---- */
+.success-icon  { font-size: 48px; text-align: center; margin-bottom: 16px; }
+.success-title { font-size: 18px; font-weight: 700; color: #065f46; text-align: center; margin-bottom: 10px; }
+.success-text  { font-size: 14px; color: #475569; text-align: center; line-height: 1.6; }

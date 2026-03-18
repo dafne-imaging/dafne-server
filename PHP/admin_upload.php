@@ -196,6 +196,7 @@ foreach ($flashes as $f) {
       <a href="admin.php">Users</a>
       <a href="admin_models.php">Models</a>
       <a href="admin_upload.php" class="active">Upload</a>
+      <a href="admin_log.php">Log</a>
     </nav>
   </div>
   <form method="post" style="margin:0">
