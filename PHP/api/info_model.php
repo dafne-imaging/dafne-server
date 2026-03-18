@@ -34,9 +34,11 @@ function handle_info_model(array $body): array
         $hashes[$stamp] = file_sha256($model_path, true);
     }
 
-    $latest = end($timestamps);
+    $latest      = end($timestamps);
+    $latest_path = MODELS_DIR . "/{$model_type}/{$latest}.model";
     $out = [
         'latest_timestamp' => $latest,
+        'latest_size'      => filesize($latest_path),
         'hash'             => $hashes[$latest],
         'hashes'           => $hashes,
         'timestamps'       => $timestamps,
