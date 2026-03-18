@@ -92,11 +92,24 @@ if ($is_authenticated && isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-cache, no-store');
 
+    // Prefix cells that start with formula-triggering characters so that
+    // spreadsheet applications (Excel, LibreOffice) do not execute them.
+    $csv_safe = static function (string $value): string {
+        if ($value !== '' && strpos('=+-@', $value[0]) !== false) {
+            return "\t" . $value;
+        }
+        return $value;
+    };
+
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));   // UTF-8 BOM for Excel
     fputcsv($out, ['ID', 'Timestamp', 'Message']);
     foreach ($rows as $row) {
-        fputcsv($out, [$row['id'], $row['created_at'], $row['message']]);
+        fputcsv($out, [
+            $row['id'],
+            $row['created_at'],
+            $csv_safe($row['message']),
+        ]);
     }
     fclose($out);
     exit;

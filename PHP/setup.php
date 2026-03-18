@@ -129,26 +129,32 @@ echo "\n";
 
 echo c(' Step 2 – Database & user creation', 'bold') . "\n\n";
 
-$root_user = '';
-$root_pass = '';
-
-if ($root_user === '') {
-    info("A privileged MySQL account is needed to create the database and");
-    info("application user (if they do not already exist).");
-    info("Leave the username blank to skip this step (e.g. DB already exists).");
-    echo "\n";
-    $root_user = prompt('MySQL admin username (e.g. root)', 'root');
+// Try connecting as the application user first. If it succeeds the database
+// already exists and no privileged access is needed.
+$skip_db_create = false;
+try {
+    $dsn_check = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                         $mysql_host, $mysql_port, $mysql_db);
+    new PDO($dsn_check, $mysql_user, $mysql_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    ok("Database '{$mysql_db}' already accessible as '{$mysql_user}' — skipping creation.");
+    $skip_db_create = true;
+} catch (PDOException) {
+    // Database or user does not exist yet; ask for privileged credentials.
 }
 
-$skip_db_create = ($root_user === '');
+if (!$skip_db_create) {
+    info("Database '{$mysql_db}' is not yet accessible as '{$mysql_user}'.");
+    info("A privileged MySQL account is needed to create the database and user.");
+    echo "\n";
+    $root_user = prompt('MySQL admin username (e.g. root)', 'root');
+    if ($root_user === '') {
+        abort("A privileged username is required to continue.");
+    }
+    $root_pass = prompt('MySQL admin password', '', secret: true);
+}
 
 if (!$skip_db_create) {
-    if ($root_pass === '') {
-        $root_pass = prompt('MySQL admin password', '', secret: true);
-    }
-
     try {
-        // Connect without selecting a database
         $dsn_root = sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $mysql_host, $mysql_port);
         $root_pdo = new PDO($dsn_root, $root_user, $root_pass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -168,12 +174,9 @@ if (!$skip_db_create) {
     $escaped_pass = $root_pdo->quote($mysql_pass);
     $escaped_host = $root_pdo->quote($mysql_host === 'localhost' ? 'localhost' : '%');
 
-    // Check if user exists (works on MySQL 5.7+)
     $stmt = $root_pdo->prepare("SELECT COUNT(*) FROM mysql.user WHERE User = ? AND Host = ?");
     $stmt->execute([$mysql_user, $mysql_host === 'localhost' ? 'localhost' : '%']);
-    $user_exists = (int) $stmt->fetchColumn() > 0;
-
-    if (!$user_exists) {
+    if ((int) $stmt->fetchColumn() === 0) {
         $root_pdo->exec(
             "CREATE USER {$escaped_user}@{$escaped_host} IDENTIFIED BY {$escaped_pass}"
         );
@@ -190,8 +193,6 @@ if (!$skip_db_create) {
     ok("Privileges granted to '{$mysql_user}' on '{$mysql_db}'.");
 
     unset($root_pdo);
-} else {
-    warn("Skipping database/user creation — assuming they already exist.");
 }
 
 echo "\n";
