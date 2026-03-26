@@ -15,7 +15,12 @@ function handle_upload_data(array $body): array
         return ['__status' => 401, 'message' => 'invalid access code'];
     }
 
-    $username = get_username($api_key);
+    $username = sanitize_username_for_filename((string) get_username($api_key));
+
+    if ($username === null) {
+        server_log("Data upload rejected: username cannot be sanitized to a valid filename component");
+        return ['__status' => 500, 'message' => 'invalid username for file storage'];
+    }
 
     if (!isset($_FILES['data_binary']) || $_FILES['data_binary']['error'] !== UPLOAD_ERR_OK) {
         return ['__status' => 400, 'message' => 'file upload error'];

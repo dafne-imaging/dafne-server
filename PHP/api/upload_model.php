@@ -15,8 +15,13 @@ function handle_upload_model(array $body): array
         return ['__status' => 401, 'message' => 'invalid access code'];
     }
 
-    $username   = get_username($api_key);
+    $username   = sanitize_username_for_filename((string) get_username($api_key));
     $model_type = sanitize_model_type($body['model_type'] ?? '');
+
+    if ($username === null) {
+        server_log("Upload rejected: username cannot be sanitized to a valid filename component");
+        return ['__status' => 500, 'message' => 'invalid username for file storage'];
+    }
 
     if ($model_type === null) {
         return ['__status' => 400, 'message' => 'invalid model type'];

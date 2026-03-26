@@ -11,12 +11,12 @@ from typing import Union
 import pydicom as dicom
 import numpy as np
 import nibabel as nib
-from build.lib.dafne_dl.model_loaders import generic_load_model
+from dafne_dl.model_loaders import generic_load_model
 from tqdm import tqdm
 import tensorflow as tf
 import torch
 
-from dl.interfaces import DeepLearningClass
+from dafne_dl.interfaces import DeepLearningClass
 
 # hide tensorflow verbose output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # set to 2 to hide all warnings

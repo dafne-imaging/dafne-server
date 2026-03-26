@@ -158,10 +158,25 @@ function sanitize_timestamp(string $input): ?string
 }
 
 /**
+ * Sanitize a username for use as a filename component.
+ * Replaces any character outside [a-zA-Z0-9_- ] with an underscore,
+ * collapses consecutive underscores, and trims leading/trailing underscores/spaces.
+ * Returns null if the result is empty (e.g. input was all special characters).
+ */
+function sanitize_username_for_filename(string $input): ?string
+{
+    $sanitized = (string) preg_replace('/[^a-zA-Z0-9_\- ]/', '_', $input);
+    $sanitized = (string) preg_replace('/_+/', '_', $sanitized);
+    $sanitized = trim($sanitized, '_ ');
+    return $sanitized !== '' ? $sanitized : null;
+}
+
+/**
  * Validate and return an upload filename.
- * Expected format: {digits}_{alphanumeric}.model
+ * Expected format: {digits}_{alphanumeric/underscore/hyphen/space}.model
+ * Use sanitize_username_for_filename() before building the name.
  */
 function sanitize_upload_filename(string $input): ?string
 {
-    return preg_match('/^\d+_[a-zA-Z0-9_]+\.model$/', $input) ? $input : null;
+    return preg_match('/^\d+_[a-zA-Z0-9_\- ]+\.model$/', $input) ? $input : null;
 }
