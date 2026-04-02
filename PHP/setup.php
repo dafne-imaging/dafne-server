@@ -1,28 +1,14 @@
-#!/usr/bin/env php
 <?php
-/**
- * Dafne Server – one-time setup script.
- *
- * Run from the PHP/ directory:
- *   php setup.php
- *
- * All settings are read from config.php — edit that file before running.
- *
- * What this script does:
- *   1. Reads all configuration values from config.php.
- *   2. Connects to MySQL with a privileged account and creates the database
- *      and application user if they do not already exist.
- *   3. Applies schema.sql (all statements are idempotent – CREATE IF NOT EXISTS).
- *   4. Creates the db/ directory tree.
- *   5. Optionally creates the first administrator account.
- */
-
 declare(strict_types=1);
+session_start();
 
-if (PHP_SAPI !== 'cli') {
-    http_response_code(403);
-    exit('This script must be run from the command line.');
-}
+/**
+ * Dafne Server – web setup wizard.
+ *
+ * Browse to this page once to initialise the database, apply the schema,
+ * create the filesystem layout, and add the first administrator account.
+ * Delete or rename this file once setup is complete.
+ */
 
 require_once __DIR__ . '/config.php';
 
@@ -30,317 +16,547 @@ require_once __DIR__ . '/config.php';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ESC = "\033[";
-
-function c(string $text, string $colour): string
+function h(string $s): string
 {
-    $codes = ['reset' => '0', 'bold' => '1', 'red' => '31', 'green' => '32',
-              'yellow' => '33', 'cyan' => '36', 'white' => '37', 'dim' => '2'];
-    return ESC . ($codes[$colour] ?? '0') . 'm' . $text . ESC . "0m";
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function info(string $msg): void  { echo c('  · ', 'dim')  . $msg . "\n"; }
-function ok(string $msg): void    { echo c('  ✓ ', 'green') . $msg . "\n"; }
-function warn(string $msg): void  { echo c('  ! ', 'yellow') . $msg . "\n"; }
-function fail(string $msg): void  { echo c('  ✗ ', 'red')   . $msg . "\n"; }
-
-function abort(string $msg): never
-{
-    echo "\n" . c('Error: ', 'red') . $msg . "\n\n";
-    exit(1);
-}
-
-function prompt(string $label, string $default = '', bool $secret = false): string
-{
-    $hint = $default !== '' ? " [{$default}]" : '';
-    echo c("  → {$label}{$hint}: ", 'cyan');
-    if ($secret) {
-        // Suppress echo on supported platforms
-        if (PHP_OS_FAMILY !== 'Windows') {
-            system('stty -echo');
-        }
-        $val = trim((string) fgets(STDIN));
-        if (PHP_OS_FAMILY !== 'Windows') {
-            system('stty echo');
-        }
-        echo "\n";
-    } else {
-        $val = trim((string) fgets(STDIN));
-    }
-    return $val !== '' ? $val : $default;
-}
-
-function ask_yes(string $question, bool $default = true): bool
-{
-    $hint = $default ? '[Y/n]' : '[y/N]';
-    echo c("  → {$question} {$hint}: ", 'cyan');
-    $val = strtolower(trim((string) fgets(STDIN)));
-    if ($val === '') return $default;
-    return $val === 'y' || $val === 'yes';
-}
-
-function generate_api_key(): string
+function gen_api_key(): string
 {
     $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    $len   = strlen($chars);
     $key   = '';
     for ($i = 0; $i < 16; $i++) {
-        $key .= $chars[random_int(0, $len - 1)];
+        $key .= $chars[random_int(0, strlen($chars) - 1)];
     }
     return $key;
 }
 
-function hash_api_key(string $key): string
+// Paths without realpath() so they work even before the dirs are created.
+$models_dir = dirname(__DIR__) . '/models';
+$data_dir   = dirname(__DIR__) . '/uploaded_data';
+
+// ---------------------------------------------------------------------------
+// State detection
+// ---------------------------------------------------------------------------
+
+function probe_state(string $models_dir, string $data_dir): array
 {
-    return hash('sha256', $key);
-}
+    $s = [
+        'db_ok'     => false,
+        'schema_ok' => false,
+        'admin_ok'  => false,
+        'dirs_ok'   => false,
+        'db_err'    => '',
+    ];
 
-// ---------------------------------------------------------------------------
-// Banner
-// ---------------------------------------------------------------------------
-
-echo "\n";
-echo c(' ╔══════════════════════════════════════╗', 'cyan') . "\n";
-echo c(' ║   Dafne Server  –  Setup             ║', 'cyan') . "\n";
-echo c(' ╚══════════════════════════════════════╝', 'cyan') . "\n\n";
-
-// ---------------------------------------------------------------------------
-// Step 1 – Configuration
-// ---------------------------------------------------------------------------
-
-echo c(' Step 1 – Configuration', 'bold') . "\n\n";
-
-$mysql_host = MYSQL_HOST;
-$mysql_port = MYSQL_PORT;
-$mysql_db   = MYSQL_DB;
-$mysql_user = MYSQL_USER;
-$mysql_pass = MYSQL_PASS;
-
-info("MySQL host    : {$mysql_host}:{$mysql_port}");
-info("MySQL database: {$mysql_db}");
-info("MySQL user    : {$mysql_user}");
-echo "\n";
-info("Edit config.php to change these values.");
-echo "\n";
-
-// ---------------------------------------------------------------------------
-// Step 2 – Privileged MySQL connection (create DB + user)
-// ---------------------------------------------------------------------------
-
-echo c(' Step 2 – Database & user creation', 'bold') . "\n\n";
-
-// Try connecting as the application user first. If it succeeds the database
-// already exists and no privileged access is needed.
-$skip_db_create = false;
-try {
-    $dsn_check = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
-                         $mysql_host, $mysql_port, $mysql_db);
-    new PDO($dsn_check, $mysql_user, $mysql_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    ok("Database '{$mysql_db}' already accessible as '{$mysql_user}' — skipping creation.");
-    $skip_db_create = true;
-} catch (PDOException) {
-    // Database or user does not exist yet; ask for privileged credentials.
-}
-
-if (!$skip_db_create) {
-    info("Database '{$mysql_db}' is not yet accessible as '{$mysql_user}'.");
-    info("A privileged MySQL account is needed to create the database and user.");
-    echo "\n";
-    $root_user = prompt('MySQL admin username (e.g. root)', 'root');
-    if ($root_user === '') {
-        abort("A privileged username is required to continue.");
-    }
-    $root_pass = prompt('MySQL admin password', '', secret: true);
-}
-
-if (!$skip_db_create) {
     try {
-        $dsn_root = sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $mysql_host, $mysql_port);
-        $root_pdo = new PDO($dsn_root, $root_user, $root_pass, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        ]);
-        ok("Connected to MySQL as '{$root_user}'.");
-    } catch (PDOException $e) {
-        abort("Could not connect to MySQL: " . $e->getMessage());
-    }
+        $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                       MYSQL_HOST, MYSQL_PORT, MYSQL_DB);
+        $pdo = new PDO($dsn, MYSQL_USER, MYSQL_PASS,
+                       [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $s['db_ok'] = true;
 
-    // Create database
-    $db_quoted = '`' . str_replace('`', '``', $mysql_db) . '`';
-    $root_pdo->exec("CREATE DATABASE IF NOT EXISTS {$db_quoted} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    ok("Database '{$mysql_db}' is ready.");
-
-    // Create user and grant privileges (MySQL 5.7 / 8 compatible)
-    $escaped_user = $root_pdo->quote($mysql_user);
-    $escaped_pass = $root_pdo->quote($mysql_pass);
-    $escaped_host = $root_pdo->quote($mysql_host === 'localhost' ? 'localhost' : '%');
-
-    $stmt = $root_pdo->prepare("SELECT COUNT(*) FROM mysql.user WHERE User = ? AND Host = ?");
-    $stmt->execute([$mysql_user, $mysql_host === 'localhost' ? 'localhost' : '%']);
-    if ((int) $stmt->fetchColumn() === 0) {
-        $root_pdo->exec(
-            "CREATE USER {$escaped_user}@{$escaped_host} IDENTIFIED BY {$escaped_pass}"
-        );
-        ok("MySQL user '{$mysql_user}' created.");
-    } else {
-        info("MySQL user '{$mysql_user}' already exists — skipping creation.");
-    }
-
-    $root_pdo->exec(
-        "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES "
-        . "ON {$db_quoted}.* TO {$escaped_user}@{$escaped_host}"
-    );
-    $root_pdo->exec('FLUSH PRIVILEGES');
-    ok("Privileges granted to '{$mysql_user}' on '{$mysql_db}'.");
-
-    unset($root_pdo);
-}
-
-echo "\n";
-
-// ---------------------------------------------------------------------------
-// Step 3 – Apply schema
-// ---------------------------------------------------------------------------
-
-echo c(' Step 3 – Schema', 'bold') . "\n\n";
-
-try {
-    $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
-                   $mysql_host, $mysql_port, $mysql_db);
-    $pdo = new PDO($dsn, $mysql_user, $mysql_pass, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-    ok("Connected to '{$mysql_db}' as '{$mysql_user}'.");
-} catch (PDOException $e) {
-    abort("Could not connect as application user: " . $e->getMessage());
-}
-
-$schema_file = __DIR__ . '/schema.sql';
-if (!file_exists($schema_file)) {
-    abort("schema.sql not found at {$schema_file}");
-}
-
-// Strip comment and blank lines first, then split on semicolons.
-$raw_sql = (string) file_get_contents($schema_file);
-$lines   = explode("\n", $raw_sql);
-$lines   = array_filter($lines, fn($l) => !str_starts_with(ltrim($l), '--') && trim($l) !== '');
-$statements = array_filter(
-    array_map('trim', explode(';', implode("\n", $lines))),
-    fn($s) => $s !== ''
-);
-
-foreach ($statements as $sql) {
-    try {
-        $pdo->exec($sql);
-        // Extract the table name for feedback
-        if (preg_match('/CREATE TABLE\s+IF NOT EXISTS\s+`?(\w+)`?/i', $sql, $m)) {
-            ok("Table '{$m[1]}' is ready.");
+        try {
+            $s['schema_ok'] = true;
+            $s['admin_ok']  = (int) $pdo->query(
+                'SELECT COUNT(*) FROM users WHERE is_admin = 1'
+            )->fetchColumn() > 0;
+        } catch (PDOException) {
+            // Schema not yet applied.
         }
     } catch (PDOException $e) {
-        fail("Failed to execute statement: " . $e->getMessage());
-        fail("SQL: " . substr($sql, 0, 120) . '…');
-        abort("Schema application failed.");
+        $s['db_err'] = $e->getMessage();
     }
+
+    $s['dirs_ok'] = is_dir($models_dir) && is_dir($data_dir);
+    return $s;
 }
 
-echo "\n";
+$state = probe_state($models_dir, $data_dir);
+$done  = $state['db_ok'] && $state['schema_ok'] && $state['admin_ok'] && $state['dirs_ok'];
 
 // ---------------------------------------------------------------------------
-// Step 4 – Filesystem layout
+// CSRF
 // ---------------------------------------------------------------------------
 
-echo c(' Step 4 – Filesystem', 'bold') . "\n\n";
+if (empty($_SESSION['setup_csrf'])) {
+    $_SESSION['setup_csrf'] = bin2hex(random_bytes(32));
+}
+$csrf = $_SESSION['setup_csrf'];
 
-$dirs = [
-    MODELS_DIR,
-    UPLOAD_DATA_DIR,
-];
+// ---------------------------------------------------------------------------
+// POST – run setup
+// ---------------------------------------------------------------------------
 
-$htaccess = "Require all denied\n";
+$log               = [];   // [['level' => 'ok|info|warn|fail', 'msg' => '...']]
+$ran               = false;
+$api_key_generated = null;
+$post_errors       = [];
 
-foreach ($dirs as $dir) {
-    if (!is_dir($dir)) {
-        if (!mkdir($dir, 0755, true)) {
-            abort("Could not create directory: {$dir}");
-        }
-        ok("Created {$dir}");
-    } else {
-        info("Exists  {$dir}");
-    }
-
-    $ht = $dir . '/.htaccess';
-    if (!file_exists($ht)) {
-        file_put_contents($ht, $htaccess);
-        ok("Created {$ht}");
-    } else {
-        info("Exists  {$ht}");
-    }
+function slog(string $level, string $msg): void
+{
+    global $log;
+    $log[] = ['level' => $level, 'msg' => $msg];
 }
 
-echo "\n";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-// ---------------------------------------------------------------------------
-// Step 5 – First admin user
-// ---------------------------------------------------------------------------
+    if (!hash_equals($csrf, (string) ($_POST['csrf'] ?? ''))) {
+        http_response_code(403);
+        die('Invalid CSRF token.');
+    }
 
-echo c(' Step 5 – Administrator account', 'bold') . "\n\n";
+    if ($done) {
+        // Already complete – silently ignore stale POST.
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
+    }
 
-$admin_count_stmt = $pdo->query('SELECT COUNT(*) FROM users WHERE is_admin = 1');
-$admin_count      = (int) $admin_count_stmt->fetchColumn();
+    $ran = true;
 
-if ($admin_count > 0) {
-    info("An administrator account already exists — skipping.");
-} else {
-    info("No administrator found. Create one now so you can log into the admin panel.");
-    echo "\n";
-    if (ask_yes("Create first administrator?", default: true)) {
-        $name  = '';
-        $email = '';
-        while ($name === '') {
-            $name = prompt('Full name');
-            if ($name === '') warn("Name cannot be empty.");
-        }
-        while ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $email = prompt('Email address');
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                warn("Please enter a valid email address.");
-                $email = '';
+    $root_user   = trim((string) ($_POST['root_user']   ?? ''));
+    $root_pass   = (string) ($_POST['root_pass']   ?? '');
+    $admin_name  = trim((string) ($_POST['admin_name']  ?? ''));
+    $admin_email = trim((string) ($_POST['admin_email'] ?? ''));
+
+    // Re-check state in case something changed since page load.
+    $state = probe_state($models_dir, $data_dir);
+
+    // ── Step 1 · Database & user ──────────────────────────────────────────
+
+    if ($state['db_ok']) {
+        slog('info', "Database '" . MYSQL_DB . "' already accessible as '"
+             . MYSQL_USER . "' — skipping creation.");
+    } else {
+        if ($root_user === '') {
+            slog('fail', 'MySQL admin username is required to create the database and user.');
+        } else {
+            try {
+                $dsn_root = sprintf('mysql:host=%s;port=%d;charset=utf8mb4',
+                                    MYSQL_HOST, MYSQL_PORT);
+                $root_pdo = new PDO($dsn_root, $root_user, $root_pass,
+                                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                slog('ok', "Connected to MySQL as '{$root_user}'.");
+
+                // Create database
+                $db_q = '`' . str_replace('`', '``', MYSQL_DB) . '`';
+                $root_pdo->exec(
+                    "CREATE DATABASE IF NOT EXISTS {$db_q}"
+                    . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                );
+                slog('ok', "Database '" . MYSQL_DB . "' is ready.");
+
+                // Create application user
+                $app_host  = MYSQL_HOST === 'localhost' ? 'localhost' : '%';
+                $chk       = $root_pdo->prepare(
+                    "SELECT COUNT(*) FROM mysql.user WHERE User = ? AND Host = ?"
+                );
+                $chk->execute([MYSQL_USER, $app_host]);
+                if ((int) $chk->fetchColumn() === 0) {
+                    $root_pdo->exec(sprintf(
+                        "CREATE USER %s@%s IDENTIFIED BY %s",
+                        $root_pdo->quote(MYSQL_USER),
+                        $root_pdo->quote($app_host),
+                        $root_pdo->quote(MYSQL_PASS)
+                    ));
+                    slog('ok', "MySQL user '" . MYSQL_USER . "' created.");
+                } else {
+                    slog('info', "MySQL user '" . MYSQL_USER . "' already exists.");
+                }
+
+                $root_pdo->exec(sprintf(
+                    "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP,"
+                    . " INDEX, ALTER, REFERENCES ON %s.* TO %s@%s",
+                    $db_q,
+                    $root_pdo->quote(MYSQL_USER),
+                    $root_pdo->quote($app_host)
+                ));
+                $root_pdo->exec('FLUSH PRIVILEGES');
+                slog('ok', "Privileges granted to '" . MYSQL_USER . "' on '" . MYSQL_DB . "'.");
+                unset($root_pdo);
+
+                $state['db_ok'] = true;
+
+            } catch (PDOException $e) {
+                slog('fail', "MySQL error: " . $e->getMessage());
             }
         }
-
-        $api_key     = generate_api_key();
-        $key_hash    = hash_api_key($api_key);
-
-        $s = $pdo->prepare(
-            'INSERT INTO users (name, email, api_key_hash, is_admin) VALUES (?, ?, ?, 1)'
-        );
-        $s->execute([$name, $email, $key_hash]);
-        $uid = (int) $pdo->lastInsertId();
-
-        echo "\n";
-        ok("Administrator '{$name}' created (id={$uid}).");
-        echo "\n";
-        echo c(' ┌─────────────────────────────────────────┐', 'yellow') . "\n";
-        echo c(' │  API Key (copy now – shown only once)   │', 'yellow') . "\n";
-        echo c(' │                                         │', 'yellow') . "\n";
-        printf(c(' │  %-41s│', 'yellow') . "\n", $api_key);
-        echo c(' └─────────────────────────────────────────┘', 'yellow') . "\n";
-        echo "\n";
-        warn("Store this key securely. It grants full admin access.");
-    } else {
-        warn("Skipped. You can create an admin via the CLI or directly in MySQL.");
     }
+
+    // ── Step 2 · Schema ───────────────────────────────────────────────────
+
+    $pdo = null;
+    if ($state['db_ok']) {
+        try {
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                           MYSQL_HOST, MYSQL_PORT, MYSQL_DB);
+            $pdo = new PDO($dsn, MYSQL_USER, MYSQL_PASS, [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        } catch (PDOException $e) {
+            slog('fail', "Could not connect as application user: " . $e->getMessage());
+        }
+    }
+
+    if ($pdo !== null) {
+        if ($state['schema_ok']) {
+            slog('info', "Schema already applied — skipping.");
+        } else {
+            $schema_file = __DIR__ . '/schema.sql';
+            if (!file_exists($schema_file)) {
+                slog('fail', "schema.sql not found at {$schema_file}.");
+            } else {
+                $raw   = (string) file_get_contents($schema_file);
+                $lines = array_filter(
+                    explode("\n", $raw),
+                    fn($l) => !str_starts_with(ltrim($l), '--') && trim($l) !== ''
+                );
+                $stmts = array_filter(
+                    array_map('trim', explode(';', implode("\n", $lines))),
+                    fn($s) => $s !== ''
+                );
+
+                $schema_ok = true;
+                foreach ($stmts as $sql) {
+                    try {
+                        $pdo->exec($sql);
+                        if (preg_match('/CREATE TABLE\s+IF NOT EXISTS\s+`?(\w+)`?/i', $sql, $m)) {
+                            slog('ok', "Table '{$m[1]}' is ready.");
+                        }
+                    } catch (PDOException $e) {
+                        slog('fail', "Schema error: " . $e->getMessage());
+                        $schema_ok = false;
+                        break;
+                    }
+                }
+                if ($schema_ok) {
+                    $state['schema_ok'] = true;
+                }
+            }
+        }
+    }
+
+    // ── Step 3 · Filesystem ───────────────────────────────────────────────
+
+    $htaccess_content = "Require all denied\n";
+    foreach ([$models_dir, $data_dir] as $dir) {
+        if (!is_dir($dir)) {
+            if (@mkdir($dir, 0755, true)) {
+                slog('ok', "Created directory: {$dir}");
+            } else {
+                slog('fail', "Could not create directory: {$dir}");
+            }
+        } else {
+            slog('info', "Directory exists: {$dir}");
+        }
+
+        $ht = $dir . '/.htaccess';
+        if (!file_exists($ht)) {
+            if (file_put_contents($ht, $htaccess_content) !== false) {
+                slog('ok', "Created .htaccess in {$dir}");
+            } else {
+                slog('warn', "Could not write .htaccess in {$dir}");
+            }
+        } else {
+            slog('info', ".htaccess already exists in {$dir}");
+        }
+    }
+
+    // ── Step 4 · First administrator ─────────────────────────────────────
+
+    if ($pdo !== null && $state['schema_ok']) {
+        $existing = (int) $pdo->query(
+            'SELECT COUNT(*) FROM users WHERE is_admin = 1'
+        )->fetchColumn();
+
+        if ($existing > 0) {
+            slog('info', "An administrator account already exists — skipping.");
+        } elseif ($admin_name === '') {
+            slog('warn', "No administrator name provided — skipping admin creation.");
+        } elseif (!filter_var($admin_email, FILTER_VALIDATE_EMAIL)) {
+            slog('warn', "Invalid or missing email address — skipping admin creation.");
+        } else {
+            $api_key  = gen_api_key();
+            $key_hash = hash('sha256', $api_key);
+            $s = $pdo->prepare(
+                'INSERT INTO users (name, email, api_key_hash, is_admin) VALUES (?, ?, ?, 1)'
+            );
+            $s->execute([$admin_name, $admin_email, $key_hash]);
+            $uid               = (int) $pdo->lastInsertId();
+            $api_key_generated = $api_key;
+            slog('ok', "Administrator '{$admin_name}' created (id={$uid}).");
+        }
+    }
+
+    // Re-probe for the result summary
+    $state = probe_state($models_dir, $data_dir);
+    $done  = $state['db_ok'] && $state['schema_ok'] && $state['admin_ok'] && $state['dirs_ok'];
 }
 
-echo "\n";
-
 // ---------------------------------------------------------------------------
-// Done
+// Render
 // ---------------------------------------------------------------------------
 
-echo c(' ══════════════════════════════════════════', 'green') . "\n";
-echo c('  Setup complete.', 'green') . "\n";
-echo c(' ══════════════════════════════════════════', 'green') . "\n\n";
+function state_badge(bool $ok, string $yes = 'Done', string $no = 'Pending'): string
+{
+    $cls  = $ok ? 'badge-done' : 'badge-pending';
+    $text = $ok ? $yes : $no;
+    return "<span class=\"state-badge {$cls}\">{$text}</span>";
+}
 
-info("Start the web server and visit /admin.php to manage users.");
-echo "\n";
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dafne – Setup</title>
+<link rel="stylesheet" href="css/admin.css">
+<style>
+.setup-log        { list-style: none; padding: 0; margin: 0; }
+.setup-log li     { padding: 7px 12px; border-radius: 4px; font-size: 13px;
+                    margin-bottom: 3px; display: flex; align-items: baseline; gap: 10px; }
+.log-ok           { background: #f0fdf4; color: #166534; }
+.log-info         { background: #f8fafc; color: #475569; }
+.log-warn         { background: #fffbeb; color: #854d0e; }
+.log-fail         { background: #fef2f2; color: #991b1b; }
+.log-icon         { font-family: monospace; font-weight: 700; flex-shrink: 0; width: 14px; }
+.state-badge      { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-done       { background: #dcfce7; color: #166534; }
+.badge-pending    { background: #fef9c3; color: #854d0e; }
+.badge-missing    { background: #fee2e2; color: #991b1b; }
+.state-grid       { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.state-item       { display: flex; align-items: center; justify-content: space-between;
+                    font-size: 13px; padding: 6px 10px; background: #f8fafc;
+                    border-radius: 4px; border: 1px solid #e4e8ef; }
+.state-item-label { color: #475569; font-weight: 500; }
+.cfg-table        { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cfg-table td     { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+.cfg-table tr:last-child td { border-bottom: none; }
+.cfg-table td:first-child   { font-weight: 600; color: #475569; width: 160px; }
+.cfg-table code   { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.key-display-wrap { background: #1e293b; border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+.key-display-wrap p   { color: #94a3b8; font-size: 12px; margin-bottom: 8px; }
+.key-code         { font-family: 'SF Mono','Fira Code',monospace; font-size: 20px;
+                    color: #fcd34d; letter-spacing: .1em; word-break: break-all; }
+.section-head     { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                    letter-spacing: .06em; color: #1a3a5c; margin: 18px 0 8px; }
+@media (max-width: 500px) { .state-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center">
+    <h1>Dafne Server</h1>
+    <span class="topbar-subtitle" style="opacity:.65;font-size:13px;margin-left:12px">Setup Wizard</span>
+  </div>
+</div>
+
+<div class="container container-narrow" style="max-width:660px">
+
+<?php if ($done && !$ran): ?>
+
+  <!-- ── Already complete ────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><h2>Setup already complete</h2></div>
+    <div class="card-body">
+      <div class="flash success" style="margin-bottom:12px">
+        The Dafne server is fully configured.
+      </div>
+      <p style="font-size:13px;color:#475569;line-height:1.6">
+        For security, <strong>delete or rename <code>setup.php</code></strong> so it cannot
+        be accessed again. Then visit
+        <a href="admin.php" style="color:#1a3a5c;font-weight:600">admin.php</a>
+        to manage users and models.
+      </p>
+    </div>
+  </div>
+
+<?php elseif ($ran): ?>
+
+  <!-- ── Setup result ────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><h2>Setup <?= $done ? 'complete' : 'finished with issues' ?></h2></div>
+    <div class="card-body">
+
+      <?php if ($done): ?>
+        <div class="flash success" style="margin-bottom:14px">All steps completed successfully.</div>
+      <?php else: ?>
+        <div class="flash error" style="margin-bottom:14px">
+          One or more steps did not complete. Review the log below and
+          <a href="<?= h($_SERVER['PHP_SELF']) ?>" style="color:#991b1b;font-weight:600">run setup again</a>
+          after fixing the issue.
+        </div>
+      <?php endif ?>
+
+      <?php if ($api_key_generated !== null): ?>
+      <div class="key-display-wrap">
+        <p>Administrator API key — copy it now, it will not be shown again:</p>
+        <div class="key-code" id="api-key-val"><?= h($api_key_generated) ?></div>
+        <button onclick="copyKey()" class="btn btn-outline btn-sm"
+                style="margin-top:10px;color:#94a3b8;border-color:#334155">
+          Copy to clipboard
+        </button>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:14px">
+        Store this key securely — it grants full administrator access.
+      </p>
+      <?php endif ?>
+
+      <p class="section-head">Log</p>
+      <ul class="setup-log">
+        <?php foreach ($log as $entry): ?>
+          <?php
+            $icon = match($entry['level']) {
+                'ok'   => '✓',
+                'warn' => '!',
+                'fail' => '✗',
+                default => '·',
+            };
+          ?>
+          <li class="log-<?= h($entry['level']) ?>">
+            <span class="log-icon"><?= $icon ?></span>
+            <span><?= h($entry['msg']) ?></span>
+          </li>
+        <?php endforeach ?>
+      </ul>
+
+      <?php if ($done): ?>
+      <p style="margin-top:16px;font-size:13px;color:#475569;line-height:1.6">
+        For security, <strong>delete or rename <code>setup.php</code></strong>, then visit
+        <a href="admin.php" style="color:#1a3a5c;font-weight:600">admin.php</a>.
+      </p>
+      <?php endif ?>
+
+    </div>
+  </div>
+
+<?php else: ?>
+
+  <!-- ── Setup form ──────────────────────────────────────────────────── -->
+
+  <!-- Current state -->
+  <div class="card">
+    <div class="card-header"><h2>Current state</h2></div>
+    <div class="card-body">
+      <div class="state-grid">
+        <div class="state-item">
+          <span class="state-item-label">Database</span>
+          <?= state_badge($state['db_ok']) ?>
+        </div>
+        <div class="state-item">
+          <span class="state-item-label">Schema</span>
+          <?= state_badge($state['schema_ok']) ?>
+        </div>
+        <div class="state-item">
+          <span class="state-item-label">Directories</span>
+          <?= state_badge($state['dirs_ok']) ?>
+        </div>
+        <div class="state-item">
+          <span class="state-item-label">Administrator</span>
+          <?= state_badge($state['admin_ok']) ?>
+        </div>
+      </div>
+      <?php if ($state['db_err'] !== ''): ?>
+      <p style="margin-top:10px;font-size:12px;color:#64748b">
+        DB error: <code><?= h($state['db_err']) ?></code>
+      </p>
+      <?php endif ?>
+    </div>
+  </div>
+
+  <!-- Config summary -->
+  <div class="card">
+    <div class="card-header"><h2>Configuration (from config.php)</h2></div>
+    <div class="card-body" style="padding:0">
+      <table class="cfg-table">
+        <tr><td>MySQL host</td>      <td><code><?= h((string) MYSQL_HOST) ?>:<?= (int) MYSQL_PORT ?></code></td></tr>
+        <tr><td>MySQL database</td>  <td><code><?= h((string) MYSQL_DB) ?></code></td></tr>
+        <tr><td>MySQL user</td>      <td><code><?= h((string) MYSQL_USER) ?></code></td></tr>
+        <tr><td>Models directory</td><td><code><?= h($models_dir) ?></code></td></tr>
+        <tr><td>Data directory</td>  <td><code><?= h($data_dir) ?></code></td></tr>
+      </table>
+      <p style="font-size:12px;color:#94a3b8;padding:10px 10px 12px">
+        Edit <code>config.php</code> to change these values before running setup.
+      </p>
+    </div>
+  </div>
+
+  <!-- Setup form -->
+  <div class="card">
+    <div class="card-header"><h2>Run setup</h2></div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+
+        <?php if (!$state['db_ok']): ?>
+        <!-- DB creation needs privileged credentials -->
+        <p class="section-head">MySQL admin credentials</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px">
+          The application database and user do not exist yet. Provide a
+          privileged MySQL account (e.g. <code>root</code>) to create them.
+        </p>
+        <div class="form-row">
+          <label for="root_user">Admin username</label>
+          <input type="text" id="root_user" name="root_user"
+                 value="<?= h($_POST['root_user'] ?? 'root') ?>"
+                 autocomplete="off" placeholder="root">
+        </div>
+        <div class="form-row">
+          <label for="root_pass">Admin password</label>
+          <input type="password" id="root_pass" name="root_pass" autocomplete="off">
+        </div>
+        <?php endif ?>
+
+        <?php if (!$state['admin_ok']): ?>
+        <!-- First admin creation -->
+        <p class="section-head">First administrator account</p>
+        <p style="font-size:12px;color:#64748b;margin-bottom:10px">
+          Leave blank to skip — you can create an admin later directly in MySQL.
+        </p>
+        <div class="form-row">
+          <label for="admin_name">Full name</label>
+          <input type="text" id="admin_name" name="admin_name"
+                 value="<?= h($_POST['admin_name'] ?? '') ?>"
+                 autocomplete="name" placeholder="Alice Smith">
+        </div>
+        <div class="form-row">
+          <label for="admin_email">Email address</label>
+          <input type="email" id="admin_email" name="admin_email"
+                 value="<?= h($_POST['admin_email'] ?? '') ?>"
+                 autocomplete="email" placeholder="alice@example.com">
+        </div>
+        <?php else: ?>
+        <div class="flash success" style="margin-bottom:14px">
+          An administrator account already exists — no action needed for this step.
+        </div>
+        <?php endif ?>
+
+        <button type="submit" class="btn btn-primary btn-lg" style="margin-top:6px">
+          Run Setup
+        </button>
+      </form>
+    </div>
+  </div>
+
+<?php endif ?>
+
+</div><!-- /container -->
+
+<?php if ($api_key_generated !== null): ?>
+<script>
+function copyKey() {
+    const txt = document.getElementById('api-key-val').textContent.trim();
+    navigator.clipboard.writeText(txt).then(() => {
+        const btn = event.target;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 2000);
+    });
+}
+</script>
+<?php endif ?>
+
+</body>
+</html>
