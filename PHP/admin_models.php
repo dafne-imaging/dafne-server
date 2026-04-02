@@ -229,6 +229,7 @@ foreach ($model_types as $mt) {
       <a href="admin_models.php" class="active">Models</a>
       <a href="admin_upload.php">Upload</a>
       <a href="admin_log.php">Log</a>
+      <a href="admin_bulk_import.php">Bulk Import</a>
     </nav>
   </div>
   <form method="post" style="margin:0">

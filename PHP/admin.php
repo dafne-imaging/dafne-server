@@ -416,6 +416,7 @@ $pending_requests = $is_authenticated ? db_get_pending_requests() : [];
       <a href="admin_models.php">Models</a>
       <a href="admin_upload.php">Upload</a>
       <a href="admin_log.php">Log</a>
+      <a href="admin_bulk_import.php">Bulk Import</a>
     </nav>
   </div>
   <form method="post" style="margin:0">
