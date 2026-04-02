@@ -11,21 +11,23 @@ require_once __DIR__ . '/lib/models.php';
 // Request bootstrapping
 // ---------------------------------------------------------------------------
 
-// Only POST is accepted on all routes.
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    json_respond(['message' => 'Method not allowed'], 405);
-}
-
-// Determine whether this is a multipart/form-data upload or a JSON body request.
+// Build the request body from whichever source the client used.
+// Some reverse proxies silently convert POST to GET, so we accept both.
+// Priority: multipart POST > JSON POST body > GET query string.
+$method       = $_SERVER['REQUEST_METHOD'];
 $content_type = $_SERVER['CONTENT_TYPE'] ?? '';
 $is_multipart = str_contains($content_type, 'multipart/form-data');
 
-if ($is_multipart) {
-    // Fields come from $_POST; files from $_FILES.
+if ($method === 'POST' && $is_multipart) {
+    // File upload: fields from $_POST, files from $_FILES.
     $body = $_POST;
-} else {
+} elseif ($method === 'POST') {
     $raw  = (string) file_get_contents('php://input');
     $body = json_decode($raw, true) ?? [];
+} elseif ($method === 'GET') {
+    $body = $_GET;
+} else {
+    json_respond(['message' => 'Method not allowed'], 405);
 }
 
 // Strip the query string, the subdirectory prefix (if deployed under one),
