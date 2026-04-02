@@ -7,7 +7,10 @@ declare(strict_types=1);
  * Upload a new canonical model and its metadata file.
  * Requires an admin API key.
  *
- * Request (multipart): { api_key, model_type } + model_binary + model_json files
+ * Request (multipart): { api_key, model_type,
+ *                        [chunk_index], [total_chunks], [filename] }
+ *                      + model_binary file
+ *                      + model_json file (required only on the last/only chunk)
  * Response: { message, model_type, timestamp, sha256, already_existed }
  */
 function handle_upload_new_model(array $body): array
@@ -24,8 +27,65 @@ function handle_upload_new_model(array $body): array
         return ['__status' => 400, 'message' => 'model_type is required and must match [a-zA-Z0-9_-]+'];
     }
 
-    if (!isset($_FILES['model_binary']) || !isset($_FILES['model_json'])) {
-        return ['__status' => 400, 'message' => 'Both model_binary and model_json file fields are required'];
+    if (!isset($_FILES['model_binary']) || $_FILES['model_binary']['error'] !== UPLOAD_ERR_OK) {
+        return ['__status' => 400, 'message' => 'model_binary file upload error'];
+    }
+
+    $chunk_index  = isset($body['chunk_index'])  ? (int) $body['chunk_index']  : 0;
+    $total_chunks = isset($body['total_chunks']) ? (int) $body['total_chunks'] : 1;
+
+    $assembled_model_path = null;
+
+    if ($total_chunks > 1) {
+        // Chunked upload: store each chunk in a temp directory under uploads/, assemble on the last one.
+        $uploads_dir = MODELS_DIR . "/{$model_type}/uploads";
+        if (!is_dir($uploads_dir)) {
+            mkdir($uploads_dir, 0755, true);
+        }
+
+        $safe_id    = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', (string) ($body['filename'] ?? ''));
+        $chunks_dir = "{$uploads_dir}/chunks_new_{$safe_id}";
+
+        if (!is_dir($chunks_dir)) {
+            mkdir($chunks_dir, 0755, true);
+        }
+
+        if (!move_uploaded_file($_FILES['model_binary']['tmp_name'], "{$chunks_dir}/{$chunk_index}.chunk")) {
+            return ['__status' => 500, 'message' => 'failed to save chunk'];
+        }
+
+        if ($chunk_index < $total_chunks - 1) {
+            return ['message' => 'chunk received'];
+        }
+
+        // Last chunk arrived: assemble all chunks.
+        $assembled_path = "{$chunks_dir}/assembled.model";
+        $out = fopen($assembled_path, 'wb');
+        if ($out === false) {
+            return ['__status' => 500, 'message' => 'failed to create assembled file'];
+        }
+        for ($i = 0; $i < $total_chunks; $i++) {
+            $cp   = "{$chunks_dir}/{$i}.chunk";
+            $data = file_get_contents($cp);
+            if ($data === false) {
+                fclose($out);
+                @unlink($assembled_path);
+                return ['__status' => 500, 'message' => "missing chunk {$i}"];
+            }
+            fwrite($out, $data);
+            unlink($cp);
+        }
+        fclose($out);
+        $assembled_model_path = $assembled_path;
+        $chunks_dir_to_clean  = $chunks_dir;
+    }
+
+    if (!isset($_FILES['model_json']) || $_FILES['model_json']['error'] !== UPLOAD_ERR_OK) {
+        if ($assembled_model_path !== null) {
+            @unlink($assembled_model_path);
+            @rmdir($chunks_dir_to_clean);
+        }
+        return ['__status' => 400, 'message' => 'model_json file upload error'];
     }
 
     try {
@@ -33,12 +93,24 @@ function handle_upload_new_model(array $body): array
             $model_type,
             $_FILES['model_binary'],
             $_FILES['model_json'],
-            $user['name']
+            $user['name'],
+            $assembled_model_path
         );
+        if ($assembled_model_path !== null) {
+            @rmdir($chunks_dir_to_clean);
+        }
         return array_merge(['message' => 'Model uploaded successfully'], $result);
     } catch (InvalidArgumentException $e) {
+        if ($assembled_model_path !== null) {
+            @unlink($assembled_model_path);
+            @rmdir($chunks_dir_to_clean);
+        }
         return ['__status' => 400, 'message' => $e->getMessage()];
     } catch (Throwable $e) {
+        if ($assembled_model_path !== null) {
+            @unlink($assembled_model_path);
+            @rmdir($chunks_dir_to_clean);
+        }
         return ['__status' => 500, 'message' => 'Server error: ' . $e->getMessage()];
     }
 }
@@ -47,21 +119,27 @@ function handle_upload_new_model(array $body): array
  * Validate uploaded files, create the model directory tree, and place the
  * files in the correct locations.  Throws on any error.
  *
+ * @param string|null $assembled_model_path  Path to a pre-assembled model file
+ *                                           (from a chunked upload). When set, the
+ *                                           model_file entry is only used for the
+ *                                           filename/extension check; the actual
+ *                                           content is taken from this path via rename().
  * @return array{model_type:string, timestamp:int, sha256:string, already_existed:bool}
  */
 function perform_model_upload(
-    string $model_type,
-    array  $model_file,   // entry from $_FILES['model_binary']
-    array  $json_file,    // entry from $_FILES['model_json']
-    string $uploaded_by
+    string  $model_type,
+    array   $model_file,            // entry from $_FILES['model_binary']
+    array   $json_file,             // entry from $_FILES['model_json']
+    string  $uploaded_by,
+    ?string $assembled_model_path = null
 ): array {
     // Validate model type (redundant if caller already sanitised, but be safe)
     if (sanitize_model_type($model_type) === null) {
         throw new InvalidArgumentException('Invalid model type name.');
     }
 
-    // File upload errors
-    if ($model_file['error'] !== UPLOAD_ERR_OK) {
+    // File upload errors (skip model_file error check when pre-assembled)
+    if ($assembled_model_path === null && $model_file['error'] !== UPLOAD_ERR_OK) {
         throw new InvalidArgumentException('Model file upload error (code ' . $model_file['error'] . ').');
     }
     if ($json_file['error'] !== UPLOAD_ERR_OK) {
@@ -99,7 +177,11 @@ function perform_model_upload(
     $timestamp  = time();
     $model_path = "{$model_dir}/{$timestamp}.model";
 
-    if (!move_uploaded_file($model_file['tmp_name'], $model_path)) {
+    if ($assembled_model_path !== null) {
+        if (!rename($assembled_model_path, $model_path)) {
+            throw new RuntimeException('Failed to save model binary.');
+        }
+    } elseif (!move_uploaded_file($model_file['tmp_name'], $model_path)) {
         throw new RuntimeException('Failed to save model binary.');
     }
 

@@ -140,18 +140,41 @@ def api_delete_upload(server: str, api_key: str, model_type: str,
                {'api_key': api_key, 'model_type': model_type, 'filename': filename})
 
 
+UPLOAD_CHUNK_SIZE = 50 * 1024 * 1024   # 50 MiB per chunk
+
+
 def api_upload_merged(server: str, api_key: str, model_type: str,
                       path: Path) -> int:
-    """Upload merged model with SHA-256 checksum; return server-assigned timestamp."""
-    sha256 = sha256_file(path)
+    """Upload merged model with SHA-256 checksum; return server-assigned timestamp.
+
+    Files larger than UPLOAD_CHUNK_SIZE are sent in multiple chunks so that
+    each individual HTTP request stays within server upload-size limits.
+    """
+    sha256       = sha256_file(path)
+    file_size    = path.stat().st_size
+    total_chunks = max(1, -(-file_size // UPLOAD_CHUNK_SIZE))  # ceiling division
+    filename     = path.name
+
     with path.open('rb') as fh:
-        r = requests.post(
-            f'{server}/upload_merged_model',
-            data={'api_key': api_key, 'model_type': model_type, 'sha256': sha256},
-            files={'model_binary': fh},
-            timeout=300,
-        )
-    r.raise_for_status()
+        for chunk_index in range(total_chunks):
+            chunk_data = fh.read(UPLOAD_CHUNK_SIZE)
+            r = requests.post(
+                f'{server}/upload_merged_model',
+                data={
+                    'api_key':      api_key,
+                    'model_type':   model_type,
+                    'sha256':       sha256,
+                    'chunk_index':  chunk_index,
+                    'total_chunks': total_chunks,
+                    'filename':     filename,
+                },
+                files={'model_binary': (filename, chunk_data, 'application/octet-stream')},
+                timeout=300,
+            )
+            r.raise_for_status()
+            if chunk_index < total_chunks - 1:
+                print(f"    chunk {chunk_index + 1}/{total_chunks} uploaded …")
+
     return int(r.json().get('timestamp', 0))
 
 

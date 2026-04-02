@@ -294,7 +294,14 @@ foreach ($flashes as $f) {
           </label>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-lg">Upload Model</button>
+        <div id="upload-status"></div>
+        <button type="submit" class="btn btn-primary btn-lg" id="upload-btn">Upload Model</button>
+        <div id="progress-wrap" style="display:none;margin-top:14px">
+          <div style="background:#e2e8f0;border-radius:4px;overflow:hidden;height:8px">
+            <div id="progress-bar" style="background:#1a3a5c;height:100%;width:0;transition:width .25s ease"></div>
+          </div>
+          <p id="progress-label" style="margin-top:6px;font-size:12px;color:#64748b"></p>
+        </div>
       </form>
     </div>
   </div>
@@ -329,7 +336,19 @@ print(r.json())
 </div><!-- /container -->
 
 <script>
-// Update file input labels when a file is chosen
+(function () {
+'use strict';
+
+// ---------------------------------------------------------------------------
+// Constants (api_key is safe to expose here — the page is admin-only)
+// ---------------------------------------------------------------------------
+const CHUNK_SIZE = 50 * 1024 * 1024;  // 50 MiB
+const API_KEY    = <?= json_encode($logged_in_key) ?>;
+const UPLOAD_URL = <?= json_encode(rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/upload_new_model') ?>;
+
+// ---------------------------------------------------------------------------
+// File input label bindings
+// ---------------------------------------------------------------------------
 function bindFileInput(inputId, wrapperId, nameId) {
     const input = document.getElementById(inputId);
     const wrap  = document.getElementById(wrapperId);
@@ -339,13 +358,130 @@ function bindFileInput(inputId, wrapperId, nameId) {
             label.textContent = input.files[0].name;
             wrap.classList.add('file-selected');
         } else {
-            label.textContent = input.getAttribute('placeholder') || 'Choose file…';
+            label.textContent = 'Choose file…';
             wrap.classList.remove('file-selected');
         }
     });
 }
 bindFileInput('model_binary', 'model-wrap', 'model-name');
 bindFileInput('model_json',   'json-wrap',  'json-name');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function escHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function setProgress(fraction, label) {
+    document.getElementById('progress-bar').style.width   = Math.round(fraction * 100) + '%';
+    document.getElementById('progress-label').textContent = label;
+}
+
+function showStatus(html) {
+    document.getElementById('upload-status').innerHTML = html;
+}
+
+function showResult(data) {
+    document.getElementById('progress-wrap').style.display = 'none';
+    const warning = data.already_existed
+        ? `<div style="margin-top:8px;font-size:12px;color:#854d0e;background:#fef9c3;border:1px solid #fde68a;border-radius:4px;padding:5px 10px">
+               This model type already existed — a new canonical model was added and model.json was overwritten.
+           </div>`
+        : '';
+    showStatus(`
+        <div class="result-banner" style="margin-bottom:14px">
+            <h3>Upload successful</h3>
+            <div class="result-row">
+                <span class="result-label">Model type</span>
+                <span class="result-val">${escHtml(data.model_type)}</span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">Timestamp</span>
+                <span class="result-val">${escHtml(String(data.timestamp))}</span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">SHA-256</span>
+                <span class="result-val">${escHtml(data.sha256)}</span>
+            </div>
+            ${warning}
+        </div>`);
+
+    const btn = document.getElementById('upload-btn');
+    btn.disabled = false;
+
+    // Reset the form
+    document.getElementById('upload-form').reset();
+    document.getElementById('model-name').textContent = 'Choose .model file…';
+    document.getElementById('json-name').textContent  = 'Choose model.json…';
+    document.getElementById('model-wrap').classList.remove('file-selected');
+    document.getElementById('json-wrap').classList.remove('file-selected');
+}
+
+// ---------------------------------------------------------------------------
+// Chunked upload
+// ---------------------------------------------------------------------------
+document.getElementById('upload-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const modelType = document.getElementById('model_type').value.trim();
+    const modelFile = document.getElementById('model_binary').files[0];
+    const jsonFile  = document.getElementById('model_json').files[0];
+
+    if (!modelType || !modelFile || !jsonFile) return;
+
+    const btn         = document.getElementById('upload-btn');
+    const progressWrap = document.getElementById('progress-wrap');
+
+    btn.disabled = true;
+    showStatus('');
+    progressWrap.style.display = 'block';
+
+    const totalChunks = Math.ceil(modelFile.size / CHUNK_SIZE) || 1;
+    let lastData = null;
+
+    try {
+        for (let i = 0; i < totalChunks; i++) {
+            const chunk = modelFile.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const fd    = new FormData();
+            fd.append('api_key',      API_KEY);
+            fd.append('model_type',   modelType);
+            fd.append('chunk_index',  i);
+            fd.append('total_chunks', totalChunks);
+            fd.append('filename',     modelFile.name);
+            fd.append('model_binary', chunk, modelFile.name);
+
+            // model_json is only required on the last chunk
+            if (i === totalChunks - 1) {
+                fd.append('model_json', jsonFile, jsonFile.name);
+            }
+
+            setProgress(
+                (i + 1) / totalChunks,
+                totalChunks > 1
+                    ? `Uploading part ${i + 1} of ${totalChunks}…`
+                    : 'Uploading…'
+            );
+
+            const resp = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
+            const data = await resp.json().catch(() => ({}));
+
+            if (!resp.ok) {
+                throw new Error(data.message || `Server error (HTTP ${resp.status})`);
+            }
+            lastData = data;
+        }
+        showResult(lastData);
+    } catch (err) {
+        progressWrap.style.display = 'none';
+        showStatus(`<div class="flash error">${escHtml(err.message)}</div>`);
+        btn.disabled = false;
+    }
+});
+
+})();
 </script>
 
 <?php endif ?>

@@ -9,7 +9,8 @@ declare(strict_types=1);
  * rejects the upload if the digest does not match.
  * Requires a merge-client API key.
  *
- * Request (multipart): { api_key, model_type, sha256 } + model_binary file
+ * Request (multipart): { api_key, model_type, sha256,
+ *                        [chunk_index], [total_chunks], [filename] } + model_binary file
  * Response: { message, timestamp }
  */
 function handle_upload_merged_model(array $body): array
@@ -33,27 +34,85 @@ function handle_upload_merged_model(array $body): array
         return ['__status' => 400, 'message' => 'file upload error'];
     }
 
+    $chunk_index  = isset($body['chunk_index'])  ? (int) $body['chunk_index']  : 0;
+    $total_chunks = isset($body['total_chunks']) ? (int) $body['total_chunks'] : 1;
+
+    $model_dir  = MODELS_DIR . "/{$model_type}";
+    $assembled  = false;
+    $chunks_dir = null;
+
+    if ($total_chunks > 1) {
+        // Chunked upload: store each chunk in a temp directory, assemble on the last one.
+        $safe_id    = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', (string) ($body['filename'] ?? ''));
+        $chunks_dir = "{$model_dir}/chunks_{$safe_id}";
+
+        if (!is_dir($chunks_dir)) {
+            mkdir($chunks_dir, 0755, true);
+        }
+
+        if (!move_uploaded_file($_FILES['model_binary']['tmp_name'], "{$chunks_dir}/{$chunk_index}.chunk")) {
+            return ['__status' => 500, 'message' => 'failed to save chunk'];
+        }
+
+        if ($chunk_index < $total_chunks - 1) {
+            return ['message' => 'chunk received'];
+        }
+
+        // Last chunk arrived: assemble all chunks.
+        $assembled_path = "{$chunks_dir}/assembled.model";
+        $out = fopen($assembled_path, 'wb');
+        if ($out === false) {
+            return ['__status' => 500, 'message' => 'failed to create assembled file'];
+        }
+        for ($i = 0; $i < $total_chunks; $i++) {
+            $cp   = "{$chunks_dir}/{$i}.chunk";
+            $data = file_get_contents($cp);
+            if ($data === false) {
+                fclose($out);
+                @unlink($assembled_path);
+                return ['__status' => 500, 'message' => "missing chunk {$i}"];
+            }
+            fwrite($out, $data);
+            unlink($cp);
+        }
+        fclose($out);
+        $file_to_verify = $assembled_path;
+        $assembled      = true;
+    } else {
+        $file_to_verify = $_FILES['model_binary']['tmp_name'];
+    }
+
     $provided_sha256 = trim($body['sha256'] ?? '');
     if (strlen($provided_sha256) !== 64 || !ctype_xdigit($provided_sha256)) {
+        if ($assembled) { @unlink($file_to_verify); @rmdir($chunks_dir); }
         return ['__status' => 400, 'message' => 'sha256 field is required (64-char hex digest)'];
     }
 
     // Verify checksum against the received bytes before committing to disk.
-    $tmp_path      = $_FILES['model_binary']['tmp_name'];
-    $actual_sha256 = (string) hash_file('sha256', $tmp_path);
+    $actual_sha256 = (string) hash_file('sha256', $file_to_verify);
     if ($actual_sha256 !== $provided_sha256) {
+        if ($assembled) { @unlink($file_to_verify); @rmdir($chunks_dir); }
         server_log("upload_merged_model: SHA-256 mismatch for {$model_type} - upload rejected");
         return ['__status' => 422, 'message' => 'SHA-256 checksum mismatch - upload corrupted or tampered'];
     }
 
     $timestamp = time();
-    $dest_path = MODELS_DIR . "/{$model_type}/{$timestamp}.model";
+    $dest_path = "{$model_dir}/{$timestamp}.model";
     $tmp_dest  = $dest_path . '.tmp';
 
     // Write to a .tmp file first; rename is atomic on POSIX filesystems,
     // preventing clients from reading a partially-written model.
-    if (!move_uploaded_file($tmp_path, $tmp_dest)) {
-        return ['__status' => 500, 'message' => 'failed to save merged model'];
+    if ($assembled) {
+        if (!rename($file_to_verify, $tmp_dest)) {
+            @unlink($file_to_verify);
+            @rmdir($chunks_dir);
+            return ['__status' => 500, 'message' => 'failed to save merged model'];
+        }
+        @rmdir($chunks_dir);
+    } else {
+        if (!move_uploaded_file($file_to_verify, $tmp_dest)) {
+            return ['__status' => 500, 'message' => 'failed to save merged model'];
+        }
     }
 
     if (!rename($tmp_dest, $dest_path)) {
