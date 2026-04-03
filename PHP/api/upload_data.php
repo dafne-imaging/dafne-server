@@ -78,5 +78,27 @@ function handle_upload_data(array $body): array
     }
 
     server_log("upload_data accessed by {$username} - upload successful");
+
+    $user = get_user_by_key($api_key);
+    $display_name = $user['name'] ?? $username;
+    $subject = "New data upload from {$display_name}";
+    $body = implode("\r\n", [
+        'A new data package has been uploaded.',
+        '',
+        str_repeat('─', 50),
+        "User:      {$display_name}",
+        'Timestamp: ' . date('Y-m-d H:i:s') . ' UTC',
+        'File:      ' . basename($dest),
+        str_repeat('─', 50),
+        '',
+        'This message was sent automatically by the Dafne server.',
+    ]);
+    $headers = implode("\r\n", [
+        'From: '        . ADMIN_EMAIL,
+        'Content-Type: text/plain; charset=UTF-8',
+        'MIME-Version: 1.0',
+    ]);
+    mail(ADMIN_EMAIL, $subject, $body, $headers);
+
     return ['message' => 'upload successful'];
 }

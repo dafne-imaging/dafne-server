@@ -242,6 +242,7 @@ function filter_qs(array $extra = []): string
       <a href="admin_upload.php">Upload</a>
       <a href="admin_log.php" class="active">Log</a>
       <a href="admin_bulk_import.php">Bulk Import</a>
+      <a href="admin_data_download.php">Data</a>
     </nav>
   </div>
   <form method="post" style="margin:0">
