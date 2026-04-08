@@ -57,16 +57,42 @@ function json_respond(array $data, int $status = 200): never
 
 /**
  * Stream a binary file with SHA-256 checksum header and terminate.
+ *
+ * Tries X-Sendfile first (if XSENDFILE_ENABLED), so the web server handles
+ * the transfer without involving PHP.  Falls back to chunked PHP streaming
+ * (1 MB chunks, output buffering disabled) to avoid hitting PHP memory limits
+ * on files larger than the configured memory_limit.
  */
 function file_respond(string $path, string $sha256): never
 {
     header('Content-Type: application/octet-stream');
-    header('Content-Length: ' . filesize($path));
+    header('Content-Disposition: attachment; filename="' . basename($path) . '"');
     if ($sha256) {
         header('X-SHA256-Checksum: ' . $sha256);
     }
-    header('Content-Disposition: attachment; filename="' . basename($path) . '"');
-    readfile($path);
+
+    if (XSENDFILE_ENABLED) {
+        // Delegate transfer to the web server — no Content-Length needed here;
+        // the server sets it from the file itself.
+        header(XSENDFILE_HEADER . ': ' . $path);
+        exit;
+    }
+
+    // Chunked PHP streaming: works on any server regardless of modules.
+    header('Content-Length: ' . filesize($path));
+    ignore_user_abort(true);
+    set_time_limit(0);
+
+    while (ob_get_level()) {
+        ob_end_clean(); // discard any buffered output and disable buffering
+    }
+
+    $fp = fopen($path, 'rb');
+    while (!feof($fp)) {
+        echo fread($fp, 1_048_576); // 1 MB per chunk
+        flush();
+    }
+    fclose($fp);
     exit;
 }
 

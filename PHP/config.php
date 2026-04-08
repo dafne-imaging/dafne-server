@@ -36,3 +36,16 @@ define('RECAPTCHA_SITE_KEY',   '');
 define('RECAPTCHA_SECRET_KEY', '');
 // Minimum score to accept (0.0 = all traffic, 1.0 = humans only).
 define('RECAPTCHA_MIN_SCORE',  0.5);
+
+// ---------------------------------------------------------------------------
+// File download
+// ---------------------------------------------------------------------------
+
+// Set to true to delegate large file downloads to the web server instead of
+// streaming them through PHP.  Requires the appropriate server module:
+//   Apache:    mod_xsendfile  → header 'X-Sendfile'
+//   nginx:     ngx_http_proxy → header 'X-Accel-Redirect'
+//   lighttpd:  mod_fastcgi    → header 'X-Sendfile'
+// When false, PHP streams the file in 1 MB chunks (works on any server).
+define('XSENDFILE_ENABLED', false);
+define('XSENDFILE_HEADER',  'X-Sendfile'); // change to 'X-Accel-Redirect' for nginx
