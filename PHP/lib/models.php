@@ -64,7 +64,6 @@ function get_pending_uploads(string $model_type): array
             'timestamp' => $parts[0] ?? '',
             'username'  => $parts[1] ?? '',
             'size'      => filesize($file),
-            'hash'      => file_sha256($file, false),
         ];
     }
 
