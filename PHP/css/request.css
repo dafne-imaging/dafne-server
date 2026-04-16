@@ -29,7 +29,7 @@ body {
     overflow: hidden;
 }
 
-.page-header    { background: #1a3a5c; color: #fff; padding: 24px 28px; }
+.page-header    { background: #40B768; color: #fff; padding: 24px 28px; }
 .page-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
 .page-header p  { opacity: .75; font-size: 13px; line-height: 1.5; }
 
@@ -78,7 +78,7 @@ body {
 }
 .model-check          { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; transition: background .12s, border-color .12s; font-size: 13px; user-select: none; }
 .model-check:hover    { background: #f8fafc; border-color: #94a3b8; }
-.model-check input    { accent-color: #1a3a5c; flex-shrink: 0; }
+.model-check input    { accent-color: #40B768; flex-shrink: 0; }
 .model-check.all-check       { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
 .model-check.all-check:hover { background: #dbeafe; }
 
@@ -95,7 +95,7 @@ body {
 }
 .btn:hover:not(:disabled) { opacity: .85; }
 .btn:disabled             { opacity: .5; cursor: not-allowed; }
-.btn-primary              { background: #1a3a5c; color: #fff; width: 100%; }
+.btn-primary              { background: #40B768; color: #fff; width: 100%; }
 
 /* ---- reCAPTCHA note ---- */
 .recaptcha-note   { margin-top: 14px; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.5; }
