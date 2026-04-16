@@ -37,14 +37,11 @@ function handle_upload_new_model(array $body): array
     $assembled_model_path = null;
 
     if ($total_chunks > 1) {
-        // Chunked upload: store each chunk in a temp directory under uploads/, assemble on the last one.
-        $uploads_dir = MODELS_DIR . "/{$model_type}/uploads";
-        if (!is_dir($uploads_dir)) {
-            mkdir($uploads_dir, 0755, true);
-        }
-
+        // Chunked upload: store each chunk in a system temp directory, assemble on the last one.
+        // Using sys_get_temp_dir() avoids creating the model directory tree prematurely,
+        // which would cause perform_model_upload() to incorrectly report already_existed=true.
         $safe_id    = preg_replace('/[^a-zA-Z0-9_\-.]/', '_', (string) ($body['filename'] ?? ''));
-        $chunks_dir = "{$uploads_dir}/chunks_new_{$safe_id}";
+        $chunks_dir = sys_get_temp_dir() . "/dafne_chunks_new_{$safe_id}";
 
         if (!is_dir($chunks_dir)) {
             mkdir($chunks_dir, 0755, true);

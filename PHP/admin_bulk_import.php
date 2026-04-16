@@ -135,16 +135,8 @@ function import_one_user(string $api_key, string $name, string $email, array $ac
         return null;
     } catch (PDOException $e) {
         $db->rollBack();
-        // Surface the most common constraint violation clearly.
         if ($e->getCode() === '23000') {
-            $msg = $e->getMessage();
-            if (stripos($msg, 'api_key_hash') !== false) {
-                return 'Duplicate API key.';
-            }
-            if (stripos($msg, 'email') !== false) {
-                return 'Email address already registered.';
-            }
-            return 'Duplicate value (constraint violation).';
+            return 'Duplicate API key.';
         }
         return 'Database error: ' . $e->getMessage();
     }

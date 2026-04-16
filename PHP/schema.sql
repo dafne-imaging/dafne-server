@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    UNIQUE KEY uq_users_email        (email),
     UNIQUE KEY uq_users_api_key_hash (api_key_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
