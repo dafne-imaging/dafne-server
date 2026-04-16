@@ -10,7 +10,7 @@
 body {
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 14px;
-    background: #f0f2f5;
+    background: #F7F9FB;
     color: #1a1a2e;
     min-height: 100vh;
     display: flex;
@@ -68,6 +68,36 @@ body {
 }
 .form-row input:focus,
 .form-row textarea:focus { border-color: #1a3a5c; }
+
+/* ---- Form type radio selector ---- */
+.form-type-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    user-select: none;
+    transition: background .12s, border-color .12s, color .12s;
+}
+.radio-option:hover { background: #f8fafc; border-color: #94a3b8; }
+.radio-option input[type="radio"] { accent-color: #40B768; flex-shrink: 0; }
+.radio-option:has(input:checked) {
+    background: #ecfdf5;
+    border-color: #40B768;
+    color: #065f46;
+}
 
 /* ---- Model checkboxes ---- */
 .models-grid {

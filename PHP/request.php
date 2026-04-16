@@ -67,7 +67,7 @@ function verify_recaptcha(string $token): bool
 }
 
 // ---------------------------------------------------------------------------
-// Admin notification email
+// Admin notification emails
 // ---------------------------------------------------------------------------
 
 function send_request_notification(
@@ -103,6 +103,34 @@ function send_request_notification(
     ]);
 
     $subject = "New access request from {$name} <{$email}>";
+    $headers = implode("\r\n", [
+        'From: '        . ADMIN_EMAIL,
+        'Reply-To: '    . $email,
+        'Content-Type: text/plain; charset=UTF-8',
+        'MIME-Version: 1.0',
+    ]);
+
+    return mail(ADMIN_EMAIL, $subject, $body, $headers);
+}
+
+function send_contact_notification(string $name, string $email, string $message): bool
+{
+    $body = implode("\r\n", [
+        'A contact message has been submitted via the Dafne server.',
+        '',
+        str_repeat('─', 50),
+        "Name:    {$name}",
+        "Email:   {$email}",
+        'Submitted: ' . date('Y-m-d H:i:s') . ' UTC',
+        '',
+        'Message:',
+        $message,
+        str_repeat('─', 50),
+        '',
+        'This message was sent automatically by the Dafne server.',
+    ]);
+
+    $subject = "Message from {$name} <{$email}>";
     $headers = implode("\r\n", [
         'From: '        . ADMIN_EMAIL,
         'Reply-To: '    . $email,
@@ -150,9 +178,10 @@ $model_types = get_model_types();
 // POST handler
 // ---------------------------------------------------------------------------
 
-$success    = false;
-$errors     = [];
-$old        = [];
+$success      = false;
+$contact_mode = false;
+$errors       = [];
+$old          = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF check
@@ -161,18 +190,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('Invalid CSRF token.');
     }
 
+    $form_type = trim($_POST['form_type'] ?? 'request');
+    if (!in_array($form_type, ['request', 'contact'], true)) {
+        $form_type = 'request';
+    }
+    $contact_mode = ($form_type === 'contact');
+
     $name   = trim($_POST['name']   ?? '');
     $email  = trim($_POST['email']  ?? '');
     $reason = trim($_POST['reason'] ?? '');
-    $old    = compact('name', 'email', 'reason');
+    $old    = compact('name', 'email', 'reason', 'form_type');
 
-    // Collect and sanitize requested model types
-    $raw_models = (array) ($_POST['models'] ?? []);
+    // Collect and sanitize requested model types (only relevant for API key requests)
     $models = [];
-    foreach ($raw_models as $m) {
-        $clean = sanitize_model_type((string) $m);
-        if ($clean !== null && in_array($clean, $model_types, true)) {
-            $models[] = $clean;
+    if (!$contact_mode) {
+        $raw_models = (array) ($_POST['models'] ?? []);
+        foreach ($raw_models as $m) {
+            $clean = sanitize_model_type((string) $m);
+            if ($clean !== null && in_array($clean, $model_types, true)) {
+                $models[] = $clean;
+            }
         }
     }
 
@@ -184,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Please enter a valid email address.';
     }
     if ($reason === '') {
-        $errors[] = 'Please describe why you need access.';
+        $errors[] = $contact_mode ? 'Please enter your message.' : 'Please describe why you need access.';
     }
 
     // reCAPTCHA
@@ -194,9 +231,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $request_id = db_insert_request($name, $email, $reason, $models);
-            $admin_url  = base_url() . '/admin.php?review=' . $request_id;
-            send_request_notification($name, $email, $reason, $models, $admin_url);
+            if ($contact_mode) {
+                send_contact_notification($name, $email, $reason);
+            } else {
+                $request_id = db_insert_request($name, $email, $reason, $models);
+                $admin_url  = base_url() . '/admin.php?review=' . $request_id;
+                send_request_notification($name, $email, $reason, $models, $admin_url);
+            }
             $success = true;
             // Regenerate CSRF token after successful submit to prevent reuse
             $_SESSION['req_csrf'] = bin2hex(random_bytes(32));
@@ -212,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dafne – Request Access</title>
+<title>Dafne – Contact/Request API Key</title>
 <?php if (RECAPTCHA_SITE_KEY !== ''): ?>
 <script src="https://www.google.com/recaptcha/enterprise.js?render=<?= h(RECAPTCHA_SITE_KEY) ?>"></script>
 <?php endif ?>
@@ -222,8 +263,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="page-card">
   <div class="page-header">
-    <h1>Request Access</h1>
-    <p>Fill in the form below to request an account on the Dafne federated learning server.<br>
+    <h1>Contact/Request API Key</h1>
+    <p>Fill in the form below to send a message or request an account on the Dafne federated learning server.<br>
        An administrator will review your request and contact you by email.</p>
   </div>
 
@@ -232,11 +273,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <?php if ($success): ?>
 
     <div class="success-icon">✅</div>
+    <?php if ($contact_mode): ?>
+    <div class="success-title">Message sent!</div>
+    <p class="success-text">
+      Your message has been forwarded to the administrator.
+      They will get back to you at the email address you provided.
+    </p>
+    <?php else: ?>
     <div class="success-title">Request submitted!</div>
     <p class="success-text">
       Your request has been received. An administrator will review it and send
       your API key to the email address you provided.
     </p>
+    <?php endif ?>
 
   <?php else: ?>
 
@@ -255,6 +304,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input type="hidden" name="csrf_token"     value="<?= h($csrf_token) ?>">
       <input type="hidden" name="recaptcha_token" id="recaptcha_token" value="">
 
+      <?php $current_form_type = $old['form_type'] ?? 'request'; ?>
+      <div class="form-row form-type-row">
+        <label class="radio-option">
+          <input type="radio" name="form_type" value="request" id="type-request"
+                 <?= $current_form_type === 'request' ? 'checked' : '' ?>>
+          Request API Key
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="form_type" value="contact" id="type-contact"
+                 <?= $current_form_type === 'contact' ? 'checked' : '' ?>>
+          Contact
+        </label>
+      </div>
+
       <div class="form-row">
         <label for="name">Full Name</label>
         <input type="text" id="name" name="name" value="<?= h($old['name'] ?? '') ?>"
@@ -268,14 +331,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="form-row">
-        <label for="reason">Reason for Request</label>
+        <label for="reason" id="reason-label">Reason for Request</label>
         <textarea id="reason" name="reason" rows="4" required
                   placeholder="Please describe your use case and why you need access to the Dafne server."
         ><?= h($old['reason'] ?? '') ?></textarea>
       </div>
 
       <?php if (!empty($model_types)): ?>
-      <div class="form-row">
+      <div class="form-row" id="models-row">
         <label>Models Requested</label>
         <div class="models-grid">
           <label class="model-check all-check">
@@ -310,6 +373,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+// Form type toggle (Request API Key / Contact)
+const typeRequest = document.getElementById('type-request');
+const typeContact = document.getElementById('type-contact');
+const modelsRow   = document.getElementById('models-row');
+const reasonLabel = document.getElementById('reason-label');
+const reasonArea  = document.getElementById('reason');
+const submitBtn   = document.getElementById('submit-btn');
+
+function applyFormType(isContact) {
+    if (modelsRow) {
+        modelsRow.style.display = isContact ? 'none' : '';
+    }
+    if (isContact) {
+        reasonLabel.textContent = 'Message';
+        reasonArea.placeholder  = 'Write your message to the administrator.';
+        submitBtn.textContent   = 'Send Message';
+    } else {
+        reasonLabel.textContent = 'Reason for Request';
+        reasonArea.placeholder  = 'Please describe your use case and why you need access to the Dafne server.';
+        submitBtn.textContent   = 'Submit Request';
+    }
+}
+
+if (typeRequest && typeContact) {
+    // Apply initial state (handles server-side repopulation after error)
+    applyFormType(typeContact.checked);
+
+    typeRequest.addEventListener('change', () => applyFormType(false));
+    typeContact.addEventListener('change', () => applyFormType(true));
+}
+
 // "All models" shortcut
 const allCb  = document.getElementById('all-models');
 const modelCbs = Array.from(document.querySelectorAll('.model-cb'));
@@ -328,7 +422,6 @@ if (allCb) {
 // reCAPTCHA v3: obtain a fresh token on submit, then allow the form to post.
 const form      = document.getElementById('request-form');
 const tokenField = document.getElementById('recaptcha_token');
-const submitBtn = document.getElementById('submit-btn');
 
 form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -342,7 +435,7 @@ form.addEventListener('submit', function (e) {
             })
             .catch(function () {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Submit Request';
+                applyFormType(typeContact && typeContact.checked);
                 alert('reCAPTCHA failed to load. Please refresh and try again.');
             });
     });
