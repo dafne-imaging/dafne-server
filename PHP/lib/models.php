@@ -145,7 +145,7 @@ function delete_older_canonical_models(string $model_type, int $keep = -1): void
  */
 function sanitize_model_type(string $input): ?string
 {
-    return preg_match('/^[a-zA-Z0-9\-]+$/', $input) ? $input : null;
+    return preg_match('/^[a-zA-Z0-9\() -]+$/', $input) ? $input : null;
 }
 
 /**
@@ -177,5 +177,5 @@ function sanitize_username_for_filename(string $input): ?string
  */
 function sanitize_upload_filename(string $input): ?string
 {
-    return preg_match('/^\d+_[a-zA-Z0-9_\- ]+\.model$/', $input) ? $input : null;
+    return preg_match('/^\d+_[a-zA-Z0-9_\() -]+\.model$/', $input) ? $input : null;
 }

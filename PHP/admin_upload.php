@@ -252,7 +252,7 @@ foreach ($flashes as $f) {
             <span class="hint">Letters, numbers, underscores and hyphens only — e.g. <code>Thigh</code>, <code>Hip_Left</code></span>
           </label>
           <input type="text" id="model_type" name="model_type"
-                 pattern="[a-zA-Z0-9_\-]+" required
+                 pattern="[a-zA-Z0-9_\()-]+" required
                  placeholder="e.g. Thigh"
                  value="<?= h($_POST['model_type'] ?? '') ?>">
 

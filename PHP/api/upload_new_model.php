@@ -24,7 +24,7 @@ function handle_upload_new_model(array $body): array
 
     $model_type = sanitize_model_type(trim($body['model_type'] ?? ''));
     if ($model_type === null || $model_type === '') {
-        return ['__status' => 400, 'message' => 'model_type is required and must match [a-zA-Z0-9_-]+'];
+        return ['__status' => 400, 'message' => 'model_type is required and must match [a-zA-Z0-9_() -]+'];
     }
 
     if (!isset($_FILES['model_binary']) || $_FILES['model_binary']['error'] !== UPLOAD_ERR_OK) {
