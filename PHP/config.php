@@ -29,11 +29,15 @@ define('MYSQL_PASS', '');
 define('ADMIN_EMAIL', 'admin@example.com');
 
 // ---------------------------------------------------------------------------
-// Google reCAPTCHA v3  (leave SITE_KEY empty to disable)
+// Google reCAPTCHA Enterprise  (leave SITE_KEY empty to disable)
 // ---------------------------------------------------------------------------
 
+// Site key from the reCAPTCHA Enterprise console.
 define('RECAPTCHA_SITE_KEY',   '');
-define('RECAPTCHA_SECRET_KEY', '');
+// Google Cloud project ID that owns the reCAPTCHA Enterprise site key.
+define('RECAPTCHA_PROJECT_ID', '');
+// Google Cloud API key with the reCAPTCHA Enterprise API enabled.
+define('RECAPTCHA_API_KEY',    '');
 // Minimum score to accept (0.0 = all traffic, 1.0 = humans only).
 define('RECAPTCHA_MIN_SCORE',  0.5);
 

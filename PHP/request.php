@@ -17,36 +17,53 @@ if (empty($_SESSION['req_csrf'])) {
 $csrf_token = $_SESSION['req_csrf'];
 
 // ---------------------------------------------------------------------------
-// reCAPTCHA v3 verification
+// reCAPTCHA Enterprise verification
 // ---------------------------------------------------------------------------
 
 function verify_recaptcha(string $token): bool
 {
-    // If no secret key is configured, skip verification (development mode).
-    if (RECAPTCHA_SECRET_KEY === '') {
+    // If no site key is configured, skip verification (development mode).
+    if (RECAPTCHA_SITE_KEY === '') {
         return true;
     }
     if ($token === '') {
         return false;
     }
-    $ctx  = stream_context_create(['http' => [
+
+    $url = sprintf(
+        'https://recaptchaenterprise.googleapis.com/v1/projects/%s/assessments?key=%s',
+        urlencode(RECAPTCHA_PROJECT_ID),
+        urlencode(RECAPTCHA_API_KEY)
+    );
+
+    $payload = json_encode([
+        'event' => [
+            'token'          => $token,
+            'siteKey'        => RECAPTCHA_SITE_KEY,
+            'expectedAction' => 'submit_request',
+            'userIpAddress'  => $_SERVER['REMOTE_ADDR'] ?? '',
+        ],
+    ]);
+
+    $ctx = stream_context_create(['http' => [
         'method'  => 'POST',
-        'header'  => 'Content-Type: application/x-www-form-urlencoded',
-        'content' => http_build_query([
-            'secret'   => RECAPTCHA_SECRET_KEY,
-            'response' => $token,
-            'remoteip' => $_SERVER['REMOTE_ADDR'] ?? '',
-        ]),
+        'header'  => "Content-Type: application/json\r\nAccept: application/json",
+        'content' => $payload,
         'timeout' => 5,
     ]]);
-    $raw  = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $ctx);
+
+    $raw = @file_get_contents($url, false, $ctx);
     if ($raw === false) {
         return false;
     }
+
     $data = json_decode($raw, true) ?? [];
-    return ($data['success'] ?? false) === true
-        && ($data['action']  ?? '') === 'submit_request'
-        && ($data['score']   ?? 0.0) >= RECAPTCHA_MIN_SCORE;
+    $props = $data['tokenProperties'] ?? [];
+    $risk  = $data['riskAnalysis']    ?? [];
+
+    return ($props['valid']  ?? false) === true
+        && ($props['action'] ?? '')    === 'submit_request'
+        && ($risk['score']   ?? 0.0)   >= RECAPTCHA_MIN_SCORE;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dafne – Request Access</title>
 <?php if (RECAPTCHA_SITE_KEY !== ''): ?>
-<script src="https://www.google.com/recaptcha/api.js?render=<?= h(RECAPTCHA_SITE_KEY) ?>"></script>
+<script src="https://www.google.com/recaptcha/enterprise.js?render=<?= h(RECAPTCHA_SITE_KEY) ?>"></script>
 <?php endif ?>
 <link rel="stylesheet" href="css/request.css">
 </head>
@@ -317,8 +334,8 @@ form.addEventListener('submit', function (e) {
     e.preventDefault();
     submitBtn.disabled = true;
     submitBtn.textContent = 'Verifying…';
-    grecaptcha.ready(function () {
-        grecaptcha.execute(<?= json_encode(RECAPTCHA_SITE_KEY) ?>, { action: 'submit_request' })
+    grecaptcha.enterprise.ready(function () {
+        grecaptcha.enterprise.execute(<?= json_encode(RECAPTCHA_SITE_KEY) ?>, { action: 'submit_request' })
             .then(function (token) {
                 tokenField.value = token;
                 form.submit();
