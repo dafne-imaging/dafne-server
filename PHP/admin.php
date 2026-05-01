@@ -253,16 +253,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         } elseif ($action === 'create_user') {
-            $name       = trim($_POST['name']  ?? '');
-            $email      = trim($_POST['email'] ?? '');
-            $send_email = isset($_POST['send_email']);
+            $name          = trim($_POST['name']  ?? '');
+            $email         = trim($_POST['email'] ?? '');
+            $send_email    = isset($_POST['send_email']);
+            $new_is_admin  = isset($_POST['is_admin']);
+            $access_models = sanitize_posted_models((array) ($_POST['access_models'] ?? []));
+            $merge_models  = sanitize_posted_models((array) ($_POST['merge_models']  ?? []));
 
             if ($name === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 flash('error', 'Please provide a valid name and email address.');
             } else {
                 $api_key = generate_api_key();
                 try {
-                    db_create_user($name, $email, hash_api_key($api_key));
+                    $uid = db_create_user($name, $email, hash_api_key($api_key));
+                    db_set_user_permissions($uid, $new_is_admin, $access_models, $merge_models);
                     $_SESSION['new_user_key'] = [
                         'key'   => $api_key,
                         'name'  => $name,
@@ -587,7 +591,37 @@ $pending_requests = $is_authenticated ? db_get_pending_requests() : [];
             <input type="email" id="new_email" name="email" autocomplete="off" required>
           </div>
         </div>
-        <div class="checkbox-row" style="margin-top:14px">
+        <?php if (!empty($model_types)): ?>
+        <table class="perm-table" style="margin-top:16px;margin-bottom:4px">
+          <thead>
+            <tr>
+              <th>Model Type</th>
+              <th style="text-align:center">Access<br><span style="font-weight:400;text-transform:none;letter-spacing:0">read &amp; upload</span></th>
+              <th style="text-align:center">Merge<br><span style="font-weight:400;text-transform:none;letter-spacing:0">merge client</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($model_types as $mt): ?>
+            <tr>
+              <td><?= h($mt) ?></td>
+              <td style="text-align:center">
+                <input type="checkbox" name="access_models[]" value="<?= h($mt) ?>">
+              </td>
+              <td style="text-align:center">
+                <input type="checkbox" name="merge_models[]" value="<?= h($mt) ?>">
+              </td>
+            </tr>
+            <?php endforeach ?>
+          </tbody>
+        </table>
+        <?php endif ?>
+        <div class="admin-row" style="margin-top:10px">
+          <input type="checkbox" id="new_is_admin" name="is_admin" value="1">
+          <label for="new_is_admin">Administrator
+            <span style="font-weight:400;color:#94a3b8">(can manage users)</span>
+          </label>
+        </div>
+        <div class="checkbox-row" style="margin-top:10px">
           <input type="checkbox" id="send_email" name="send_email" value="1" checked>
           <label for="send_email">Send welcome email with API key to the new user</label>
         </div>
