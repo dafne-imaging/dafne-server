@@ -45,15 +45,19 @@ function verify_recaptcha(string $token): bool
         ],
     ]);
 
-    $ctx = stream_context_create(['http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type: application/json\r\nAccept: application/json",
-        'content' => $payload,
-        'timeout' => 5,
-    ]]);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 5,
+    ]);
+    $raw    = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false) {
+    if ($raw === false || $status !== 200) {
         return false;
     }
 
